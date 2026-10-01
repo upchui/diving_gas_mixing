@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#04121f">
+  <title>Nitrox Top-Up Rechner</title>
+  <meta name="description" content="Nitrox Top-Up Rechner: Wie viel O₂ und Luft muss in die Flasche? Partialdruck-Mischen einfach und visuell.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='20' y='12' width='24' height='46' rx='10' fill='%2322d3ee'/%3E%3Crect x='20' y='26' width='24' height='8' fill='%23facc15'/%3E%3Crect x='27' y='4' width='10' height='9' rx='2' fill='%2394a3b8'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <pattern id="weave" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="6" height="6" fill="#262b33"/>
+        <rect width="3" height="6" fill="#3b424d"/>
+      </pattern>
+    </defs>
+  </svg>
+
+  <div class="bubbles" aria-hidden="true">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <rect x="20" y="12" width="24" height="46" rx="10" fill="currentColor"/>
+        <rect x="20" y="26" width="24" height="8" fill="#facc15"/>
+        <rect x="27" y="4" width="10" height="9" rx="2" fill="#94a3b8"/>
+      </svg>
+      <div>
+        <h1 data-i18n="title">Nitrox Top-Up Rechner</h1>
+        <p class="subtitle" data-i18n="subtitle">Partialdruck-Mischen: Was muss in die Flasche?</p>
+      </div>
+    </div>
+    <div class="lang-switch" role="group" aria-label="Sprache / Language">
+      <button type="button" data-lang="de" class="active">DE</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Eingaben -->
+    <section class="inputs" aria-labelledby="inputs-heading">
+      <h2 id="inputs-heading" class="sr-only" data-i18n="inputs">Eingaben</h2>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="dot dot-current"></span>
+          <h3 data-i18n="currentMix">Aktuelles Gemisch</h3>
+        </div>
+        <div class="field">
+          <label for="curO2" data-i18n="oxygen">Sauerstoff</label>
+          <div class="num-wrap">
+            <input type="number" id="curO2" min="21" max="100" step="0.5" inputmode="decimal">
+            <span class="unit">% O₂</span>
+          </div>
+          <input type="range" class="slider" data-for="curO2" min="21" max="100" step="0.5">
+          <div class="chips" data-for="curO2">
+            <button type="button" data-value="21" data-i18n="air">Luft</button>
+            <button type="button" data-value="28">EAN28</button>
+            <button type="button" data-value="32">EAN32</button>
+            <button type="button" data-value="36">EAN36</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="dot dot-target"></span>
+          <h3 data-i18n="targetMix">Gewünschtes Gemisch</h3>
+        </div>
+        <div class="field">
+          <label for="tgtO2" data-i18n="oxygen">Sauerstoff</label>
+          <div class="num-wrap">
+            <input type="number" id="tgtO2" min="21" max="100" step="0.5" inputmode="decimal">
+            <span class="unit">% O₂</span>
+          </div>
+          <input type="range" class="slider" data-for="tgtO2" min="21" max="100" step="0.5">
+          <div class="chips" data-for="tgtO2">
+            <button type="button" data-value="28">EAN28</button>
+            <button type="button" data-value="32">EAN32</button>
+            <button type="button" data-value="36">EAN36</button>
+            <button type="button" data-value="40">EAN40</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <span class="dot dot-cyl"></span>
+          <h3 data-i18n="cylinder">Flasche</h3>
+        </div>
+        <div class="field">
+          <label for="size" data-i18n="cylSize">Flaschengröße</label>
+          <div class="num-wrap">
+            <input type="number" id="size" min="1" max="50" step="0.5" inputmode="decimal">
+            <span class="unit">L</span>
+          </div>
+          <div class="chips" data-for="size">
+            <button type="button" data-value="7">7 L</button>
+            <button type="button" data-value="10">10 L</button>
+            <button type="button" data-value="12">12 L</button>
+            <button type="button" data-value="15">15 L</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="curP" data-i18n="curPressure">Aktueller Druck</label>
+          <div class="num-wrap">
+            <input type="number" id="curP" min="0" max="350" step="1" inputmode="decimal">
+            <span class="unit">bar</span>
+          </div>
+          <input type="range" class="slider" data-for="curP" min="0" max="350" step="1">
+          <div class="chips" data-for="curP">
+            <button type="button" data-value="0">0</button>
+            <button type="button" data-value="30">30</button>
+            <button type="button" data-value="50">50</button>
+            <button type="button" data-value="100">100</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fillP" data-i18n="fillPressure">Fülldruck</label>
+          <div class="num-wrap">
+            <input type="number" id="fillP" min="1" max="350" step="1" inputmode="decimal">
+            <span class="unit">bar</span>
+          </div>
+          <input type="range" class="slider" data-for="fillP" min="1" max="350" step="1">
+          <div class="chips" data-for="fillP">
+            <button type="button" data-value="200">200</button>
+            <button type="button" data-value="220">220</button>
+            <button type="button" data-value="232">232</button>
+            <button type="button" data-value="300">300</button>
+            <button type="button" data-value="350">350</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card thermo-card">
+        <div class="card-head">
+          <span class="dot dot-thermo"></span>
+          <h3 id="thermoHead" data-i18n="thermoTitle">Erwärmung beim Füllen</h3>
+          <label class="switch switch-head">
+            <input type="checkbox" id="thermoOn" aria-labelledby="thermoHead">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <p class="card-hint" data-i18n="thermoHint">Beim Füllen wird das Gas warm, beim Abkühlen sinkt der Druck. Berechnet die warmen Manometerwerte für den Flaschentyp.</p>
+
+        <div id="thermoBody" hidden>
+          <div class="field">
+            <span class="field-label" data-i18n="cylType">Flaschentyp</span>
+            <div class="material-picker" role="group" aria-label="Flaschentyp">
+              <button type="button" data-material="steel" aria-pressed="false">
+                <svg viewBox="0 0 24 40" aria-hidden="true"><rect x="9" y="1" width="6" height="7" rx="1.5" fill="#94a3b8"/><rect x="4" y="7" width="16" height="32" rx="7" fill="#7d8b99"/><rect x="6" y="11" width="3" height="24" rx="1.5" fill="#fff" opacity=".25"/></svg>
+                <span data-i18n="matSteel">Stahl</span>
+              </button>
+              <button type="button" data-material="alu" aria-pressed="false">
+                <svg viewBox="0 0 24 40" aria-hidden="true"><rect x="9" y="1" width="6" height="7" rx="1.5" fill="#94a3b8"/><rect x="4" y="7" width="16" height="32" rx="7" fill="#d5dde5"/><rect x="6" y="11" width="3" height="24" rx="1.5" fill="#fff" opacity=".5"/></svg>
+                <span data-i18n="matAlu">Alu</span>
+              </button>
+              <button type="button" data-material="carbon" aria-pressed="false">
+                <svg viewBox="0 0 24 40" aria-hidden="true"><rect x="9" y="1" width="6" height="7" rx="1.5" fill="#94a3b8"/><rect x="4" y="7" width="16" height="32" rx="7" fill="url(#weave)"/></svg>
+                <span data-i18n="matCarbon">Carbon</span>
+              </button>
+              <button type="button" data-material="steelCarbon" aria-pressed="false">
+                <svg viewBox="0 0 24 40" aria-hidden="true"><rect x="9" y="1" width="6" height="7" rx="1.5" fill="#94a3b8"/><rect x="4" y="7" width="16" height="32" rx="7" fill="url(#weave)"/><rect x="7.5" y="10.5" width="9" height="25" rx="4.5" fill="none" stroke="#9aa7b4" stroke-width="1.5"/></svg>
+                <span data-i18n="matSteelCarbon">Stahl-Carbon</span>
+              </button>
+            </div>
+            <p id="materialHint" class="field-hint"></p>
+          </div>
+
+          <div class="field">
+            <label for="tAmb" data-i18n="ambientTemp">Umgebungstemperatur</label>
+            <div class="num-wrap">
+              <input type="number" id="tAmb" min="-10" max="45" step="1" inputmode="decimal">
+              <span class="unit">°C</span>
+            </div>
+            <input type="range" class="slider" data-for="tAmb" min="-5" max="40" step="1">
+            <div class="chips" data-for="tAmb">
+              <button type="button" data-value="10">10 °C</button>
+              <button type="button" data-value="15">15 °C</button>
+              <button type="button" data-value="20">20 °C</button>
+              <button type="button" data-value="25">25 °C</button>
+              <button type="button" data-value="30">30 °C</button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="rate" data-i18n="fillRate">Füllgeschwindigkeit</label>
+            <div class="num-wrap">
+              <input type="number" id="rate" min="0.5" max="60" step="0.5" inputmode="decimal">
+              <span class="unit">bar/min</span>
+            </div>
+            <div class="chips" data-for="rate">
+              <button type="button" data-value="5">5 · <span data-i18n="rateSlow">langsam</span></button>
+              <button type="button" data-value="10">10 · <span data-i18n="rateNormal">normal</span></button>
+              <button type="button" data-value="20">20 · <span data-i18n="rateFast">schnell</span></button>
+            </div>
+          </div>
+
+          <div class="field toggles">
+            <label class="switch switch-row">
+              <input type="checkbox" id="waterBath">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span data-i18n="waterBath">Wasserbad</span>
+            </label>
+            <label class="switch switch-row">
+              <input type="checkbox" id="coolPause">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span data-i18n="coolPause">Nach O₂ abkühlen lassen</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ergebnis -->
+    <section class="results" aria-live="polite">
+      <div class="card result-card">
+        <div class="hero">
+          <div id="error" class="alert alert-error" hidden></div>
+          <div id="drainAlert" class="alert alert-warn" hidden></div>
+
+          <div id="heroO2" class="hero-o2">
+            <div class="hero-head">
+              <span class="hero-label" data-i18n="fillO2To">O₂ füllen bis</span>
+              <span class="hero-badges">
+                <span id="warmBadge" class="badge-warm" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
+                  <span data-i18n="warmRead">warm ablesen</span>
+                </span>
+                <span id="drainBadge" class="badge-drain" hidden></span>
+              </span>
+            </div>
+            <div id="heroValue" class="hero-value">
+              <span id="o2Target">–</span><small>bar</small>
+            </div>
+            <div id="heroSub" class="hero-sub">
+              <span data-i18n="gaugeFrom">Manometer: von</span>
+              <strong id="o2From">–</strong> → <strong id="o2TargetSub">–</strong> bar
+              · <strong id="o2Delta">–</strong> <span id="o2DeltaLabel">bar reiner O₂</span>
+            </div>
+            <div id="heroCold" class="hero-cold" hidden>
+              <span id="o2Heat" class="heat-delta"></span>
+              <span id="o2ColdText"></span>
+            </div>
+            <div id="heroNone" class="hero-sub" hidden data-i18n="noO2Needed">Kein Sauerstoff nötig – nur Luft auffüllen.</div>
+            <div class="gauge-bar" aria-hidden="true">
+              <span id="gaugeResidual" class="seg seg-residual"></span>
+              <span id="gaugeO2" class="seg seg-o2"></span>
+              <span id="gaugeAir" class="seg seg-air"></span>
+            </div>
+          </div>
+
+          <div id="heroAir" class="hero-air">
+            <div class="hero-air-text">
+              <span class="hero-air-head">
+                <span id="heroAirLabel" class="hero-label">Dann mit Luft auffüllen bis</span>
+                <span id="warmBadgeAir" class="badge-warm" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
+                  <span data-i18n="warmRead">warm ablesen</span>
+                </span>
+              </span>
+              <span id="airCold" class="hero-cold" hidden>
+                <span id="airHeat" class="heat-delta"></span>
+                <span id="airColdText"></span>
+              </span>
+            </div>
+            <span id="heroAirValue" class="hero-air-value"><span id="airTarget">–</span><small>bar</small></span>
+          </div>
+        </div>
+
+        <div class="visual">
+          <svg id="cylinder" viewBox="0 0 220 420" role="img" aria-label="Flaschen-Visualisierung">
+            <defs>
+              <clipPath id="cylClip">
+                <rect x="40" y="70" width="110" height="330" rx="40"/>
+              </clipPath>
+              <linearGradient id="gloss" x1="0" x2="1">
+                <stop offset="0" stop-color="#fff" stop-opacity="0.18"/>
+                <stop offset="0.35" stop-color="#fff" stop-opacity="0.04"/>
+                <stop offset="0.8" stop-color="#000" stop-opacity="0.15"/>
+                <stop offset="1" stop-color="#000" stop-opacity="0.35"/>
+              </linearGradient>
+              <linearGradient id="gResidual" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0369a1"/>
+              </linearGradient>
+              <linearGradient id="gO2" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#15803d"/>
+              </linearGradient>
+              <linearGradient id="gAir" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
+              </linearGradient>
+            </defs>
+            <!-- Ventil -->
+            <rect x="80" y="18" width="30" height="40" rx="5" fill="#64748b"/>
+            <rect x="70" y="10" width="50" height="14" rx="5" fill="#94a3b8"/>
+            <rect x="110" y="32" width="26" height="12" rx="4" fill="#94a3b8"/>
+            <rect x="85" y="56" width="20" height="16" fill="#475569"/>
+            <!-- Flaschenkörper -->
+            <rect x="40" y="70" width="110" height="330" rx="40" fill="#0b2338" stroke="#1e3a5f" stroke-width="2"/>
+            <g clip-path="url(#cylClip)">
+              <rect id="layerResidual" class="layer" x="40" y="400" width="110" height="0" fill="url(#gResidual)"/>
+              <rect id="layerO2" class="layer" x="40" y="400" width="110" height="0" fill="url(#gO2)"/>
+              <rect id="layerAir" class="layer" x="40" y="400" width="110" height="0" fill="url(#gAir)"/>
+              <line id="drainLine" x1="40" x2="150" y1="0" y2="0" stroke="#f87171" stroke-width="2" stroke-dasharray="6 5" opacity="0"/>
+              <!-- Nitrox-Band -->
+              <rect x="40" y="110" width="110" height="22" fill="#facc15" opacity="0.92"/>
+              <text x="95" y="126" text-anchor="middle" class="band-text">NITROX</text>
+              <rect x="40" y="70" width="110" height="330" fill="url(#gloss)"/>
+            </g>
+            <rect x="40" y="70" width="110" height="330" rx="40" fill="none" stroke="#38bdf8" stroke-opacity="0.35" stroke-width="2"/>
+            <g id="ticks"></g>
+          </svg>
+          <ul class="legend">
+            <li><span class="sw sw-residual"></span><span data-i18n="legendResidual">Restgas</span></li>
+            <li><span class="sw sw-o2"></span><span data-i18n="legendO2">Sauerstoff</span></li>
+            <li><span class="sw sw-air"></span><span data-i18n="legendAir">Luft</span></li>
+          </ul>
+        </div>
+
+        <div class="numbers">
+
+          <div id="resultTiles" class="tiles">
+            <div class="tile tile-o2">
+              <div id="o2TileLabel" class="tile-label">O₂ zugeben</div>
+              <div class="tile-value"><span id="o2Bar">–</span><small>bar</small></div>
+              <div class="tile-sub"><span id="o2L">–</span> <span data-i18n="litersO2">Liter O₂</span></div>
+            </div>
+            <div class="tile tile-air">
+              <div id="airTileLabel" class="tile-label">Luft zugeben</div>
+              <div class="tile-value"><span id="airBar">–</span><small>bar</small></div>
+              <div class="tile-sub"><span id="airL">–</span> <span data-i18n="litersAir">Liter Luft</span></div>
+            </div>
+          </div>
+
+          <div class="steps-wrap">
+            <h3 data-i18n="steps">Schritt für Schritt</h3>
+            <ol id="steps" class="steps"></ol>
+          </div>
+
+          <div class="facts">
+            <div class="fact">
+              <span class="fact-label" data-i18n="finalMix">Endgemisch</span>
+              <span class="fact-value" id="factMix">–</span>
+            </div>
+            <div class="fact">
+              <span class="fact-label" data-i18n="totalGas">Gas gesamt</span>
+              <span class="fact-value" id="factTotal">–</span>
+            </div>
+            <div class="fact">
+              <span class="fact-label">MOD ppO₂ 1,4</span>
+              <span class="fact-value" id="factMod14">–</span>
+            </div>
+            <div class="fact">
+              <span class="fact-label">MOD ppO₂ 1,6</span>
+              <span class="fact-value" id="factMod16">–</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section id="thermoSection" class="card thermo-results viz" hidden aria-labelledby="thermoResTitle">
+        <div class="thermo-head">
+          <h3 id="thermoResTitle" data-i18n="thermoResults">Thermomodell: Füllen &amp; Abkühlen</h3>
+          <p id="thermoMeta" class="thermo-meta"></p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <span class="kpi-label" data-i18n="kpiTmax">Max. Gastemperatur</span>
+            <span class="kpi-value" id="kpiTmax">–</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label" data-i18n="kpiHotEnd">Enddruck warm</span>
+            <span class="kpi-value" id="kpiHotEnd">–</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label" data-i18n="kpiDrop">Druckabfall beim Abkühlen</span>
+            <span class="kpi-value" id="kpiDrop">–</span>
+          </div>
+          <div class="kpi">
+            <span class="kpi-label" data-i18n="kpiCool">Abkühlzeit bis ±2 °C</span>
+            <span class="kpi-value" id="kpiCool">–</span>
+          </div>
+        </div>
+
+        <div id="naiveBox" class="alert alert-warn"></div>
+
+        <div class="viz-legend">
+          <span class="lk"><i class="key key-1"></i><span data-i18n="withCorr">Mit Korrektur</span></span>
+          <span class="lk"><i class="key key-2"></i><span data-i18n="withoutCorr">Ohne Korrektur</span></span>
+        </div>
+
+        <figure class="chart" id="chartP" tabindex="0">
+          <figcaption><span data-i18n="chartPressure">Manometerdruck (bar)</span><span class="ref-key"><i class="key key-ref"></i><span id="refP"></span></span></figcaption>
+          <svg aria-hidden="true"></svg>
+        </figure>
+        <figure class="chart" id="chartT" tabindex="0">
+          <figcaption><span data-i18n="chartTemp">Gastemperatur (°C)</span><span class="ref-key"><i class="key key-ref"></i><span id="refT"></span></span></figcaption>
+          <svg aria-hidden="true"></svg>
+        </figure>
+        <div id="vizTip" class="viz-tip" hidden></div>
+
+        <details class="table-view">
+          <summary data-i18n="showTable">Werte als Tabelle</summary>
+          <div class="table-wrap"><table id="thermoTable"></table></div>
+        </details>
+
+        <p class="thermo-note" data-i18n="thermoNote">Schätzung mit vereinfachtem Modell.</p>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p data-i18n="disclaimer">Rechenhilfe nach der Partialdruck-Methode (ideales Gas, Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren.</p>
+  </footer>
+
+  <script src="thermo.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
