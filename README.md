@@ -2,7 +2,7 @@
 
 A free calculator for **partial pressure nitrox blending**. It tells you how much pure oxygen and air to put into a partly filled cylinder to get the mix you want, and what your gauge should read while the cylinder is still warm from filling.
 
-**Open the calculator:** https://upchui.github.io/diving_gas_mixing/
+**Open the calculator:** https://mix.alhu.at/
 
 It runs entirely in your browser, works on a phone at the fill station, and is available in English and German. Your inputs are remembered in your browser.
 
@@ -116,6 +116,15 @@ A static page with no build step and no dependencies:
 python -m http.server 8000
 # then open http://localhost:8000
 ```
+
+Or with Docker (nginx, port 8381):
+
+```bash
+docker compose up -d --build
+# then open http://localhost:8381
+```
+
+Stop it with `docker compose down`.
 
 To publish it on GitHub Pages: **Settings → Pages → Deploy from a branch**, branch `main`, folder `/ (root)`.
 

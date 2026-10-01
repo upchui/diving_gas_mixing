@@ -1,0 +1,7 @@
+.git
+*.md
+LICENSE
+.nojekyll
+Dockerfile
+docker-compose.yml
+.dockerignore
