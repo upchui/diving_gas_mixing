@@ -4,7 +4,7 @@ A free calculator for **partial pressure nitrox blending**. It tells you how muc
 
 **Open the calculator:** https://mix.alhu.at/
 
-It runs entirely in your browser, works on a phone at the fill station, and is available in English and German. Your inputs are remembered in your browser.
+It runs entirely in your browser, works on a phone at the fill station, and is available in English and German (it follows your device language). Your inputs are remembered in your browser.
 
 ## What it does
 

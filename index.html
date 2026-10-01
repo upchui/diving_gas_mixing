@@ -172,6 +172,14 @@
             <p id="materialHint" class="field-hint"></p>
           </div>
 
+          <details id="moreSettings" class="more-settings" open>
+            <summary>
+              <span class="ms-text">
+                <span data-i18n="moreSettings">Weitere Einstellungen</span>
+                <span id="settingsSummary" class="settings-summary"></span>
+              </span>
+            </summary>
+
           <div class="field">
             <label for="tAmb" data-i18n="ambientTemp">Umgebungstemperatur</label>
             <div class="num-wrap">
@@ -213,6 +221,7 @@
               <span data-i18n="coolPause">Nach O₂ abkühlen lassen</span>
             </label>
           </div>
+          </details>
         </div>
       </div>
     </section>
@@ -418,6 +427,18 @@
   <footer class="footer">
     <p data-i18n="disclaimer">Rechenhilfe nach der Partialdruck-Methode (ideales Gas, Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren.</p>
   </footer>
+
+  <button type="button" id="resultBar" class="result-bar away">
+    <span class="rb-main">
+      <span id="rbDrain" class="rb-drain" hidden></span>
+      <span id="rbValues" class="rb-values"></span>
+    </span>
+    <span id="rbWarm" class="badge-warm rb-warm" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
+      <span data-i18n="warmShort">warm</span>
+    </span>
+    <svg class="rb-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
 
   <script src="thermo.js"></script>
   <script src="app.js"></script>

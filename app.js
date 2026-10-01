@@ -3,8 +3,13 @@
 
   const AIR_O2 = 0.21;
   const STORAGE_KEY = 'nitrox-topup-v1';
+  // German if the device's primary language is German, otherwise English
+  const deviceLang = () => {
+    const primary = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+    return primary.toLowerCase().startsWith('de') ? 'de' : 'en';
+  };
   const DEFAULTS = {
-    curO2: 21, tgtO2: 32, size: 12, curP: 50, fillP: 200, lang: 'de',
+    curO2: 21, tgtO2: 32, size: 12, curP: 50, fillP: 200, lang: deviceLang(), langChosen: false,
     thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false,
   };
 
@@ -41,6 +46,14 @@
       gaugeFrom: 'Manometer: von',
       barPureO2: 'bar reiner O₂',
       noO2Needed: 'Kein Sauerstoff nötig – nur Luft auffüllen.',
+      moreSettings: 'Weitere Einstellungen',
+      pauseShort: 'Pause nach O₂',
+      rbO2: 'O₂ bis',
+      rbAir: 'Luft bis',
+      rbNoO2: 'Kein O₂ nötig',
+      rbNoAir: 'Keine Luft nötig',
+      toResult: 'Zum Ergebnis',
+      warmShort: 'warm',
       // Thermal model
       thermoTitle: 'Erwärmung beim Füllen',
       thermoHint: 'Beim Füllen wird das Gas warm, beim Abkühlen sinkt der Druck. Berechnet die warmen Manometerwerte für den Flaschentyp.',
@@ -144,6 +157,14 @@
       gaugeFrom: 'Gauge: from',
       barPureO2: 'bar pure O₂',
       noO2Needed: 'No oxygen needed – top up with air only.',
+      moreSettings: 'More settings',
+      pauseShort: 'pause after O₂',
+      rbO2: 'O₂ to',
+      rbAir: 'Air to',
+      rbNoO2: 'No O₂ needed',
+      rbNoAir: 'No air needed',
+      toResult: 'Jump to result',
+      warmShort: 'warm',
       thermoTitle: 'Heating during fill',
       thermoHint: 'Gas heats up while filling and the pressure drops as it cools. Calculates the warm gauge readings for the cylinder type.',
       cylType: 'Cylinder type',
@@ -229,8 +250,12 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       for (const k of Object.keys(DEFAULTS)) {
         // The thermal model always starts switched on
-        if (k in saved && k !== 'thermoOn') state[k] = saved[k];
+        if (k === 'thermoOn') continue;
+        // Keep a saved language only if the user picked it; otherwise follow the device
+        if (k === 'lang' && !saved.langChosen) continue;
+        if (k in saved) state[k] = saved[k];
       }
+      if (!(state.lang in I18N)) state.lang = DEFAULTS.lang;
       if (!(state.material in MAT_LABEL)) state.material = DEFAULTS.material;
     } catch (_) { /* storage unavailable */ }
   }
@@ -341,6 +366,10 @@
     // With the thermal model on, the small tiles show amounts after cooling, not the warm gauge rise
     $('o2TileLabel').textContent = state.thermoOn ? L.addO2Cooled : L.addO2;
     $('airTileLabel').textContent = state.thermoOn ? L.addAirCooled : L.addAir;
+    const num = (x) => (Number.isFinite(x) ? fmtAuto(x) : '–');
+    $('settingsSummary').textContent = [
+      `${num(v.tAmb)} °C`, `${num(v.rate)} bar/min`, state.waterBath && L.waterBath, state.coolPause && L.pauseShort,
+    ].filter(Boolean).join(' · ');
 
     const err = validate(v);
     markInvalid(err);
@@ -360,6 +389,7 @@
       setGauge(null);
       drawCylinder(null, v);
       renderThermo(null);
+      updateResultBar({ error: L[err] });
       return;
     }
     errBox.hidden = true;
@@ -439,7 +469,60 @@
     $('factMod16').textContent = `${fmt((1.6 / f2 - 1) * 10)} m`;
 
     drawCylinder(r, v);
+    updateResultBar({
+      drain: r.drain ? fmt(r.keep) : null, needsO2, needsAir, o2: fmt(gaugeO2), air: fmt(gaugeEnd), warm: !!th,
+    });
     renderThermo(th, v, r, needsO2, needsAir);
+  }
+
+  // Phones: compact summary of the gauge targets, pinned to the bottom of the screen
+  function updateResultBar(s) {
+    const L = I18N[state.lang];
+    const values = $('rbValues');
+    $('resultBar').classList.toggle('is-error', !!s.error);
+    $('rbDrain').hidden = !s.drain;
+    if (s.drain) $('rbDrain').textContent = L.drainFirst(s.drain);
+    $('rbWarm').hidden = !s.warm;
+    values.replaceChildren();
+    if (s.error) {
+      const msg = document.createElement('span');
+      msg.className = 'rb-error';
+      msg.textContent = s.error;
+      values.append(msg);
+      return;
+    }
+    const item = (label, value) => {
+      const el = document.createElement('span');
+      el.className = 'rb-item';
+      const lab = document.createElement('span');
+      lab.className = 'rb-label';
+      lab.textContent = label;
+      el.append(lab);
+      if (value != null) {
+        const strong = document.createElement('strong');
+        strong.textContent = value;
+        el.append(' ', strong, ' bar');
+      }
+      return el;
+    };
+    values.append(
+      s.needsO2 ? item(L.rbO2, s.o2) : item(L.rbNoO2),
+      s.needsAir ? item(L.rbAir, s.air) : item(L.rbNoAir)
+    );
+  }
+
+  // Show the result bar only while the result tiles are still below the screen
+  function watchResultBar() {
+    const bar = $('resultBar');
+    bar.addEventListener('click', () => {
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document.querySelector('.result-card').scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    });
+    if (typeof IntersectionObserver === 'undefined') return;
+    new IntersectionObserver(([entry]) => {
+      const below = !entry.isIntersecting && entry.boundingClientRect.top > 0;
+      bar.classList.toggle('away', !below);
+    }, { rootMargin: '0px 0px -72px 0px' }).observe(document.querySelector('.hero'));
   }
 
   function setGauge(r, fillP) {
@@ -505,12 +588,13 @@
     // Pressure ticks on the right side; skip ones that would overlap
     const marks = [{ p: 0 }, { p: r.keep }, { p: pO2 }, { p: v.fillP }];
     if (r.drain) marks.push({ p: v.curP, drain: true });
+    const minGap = window.matchMedia('(max-width: 640px)').matches ? 26 : 14;
     const placed = [];
     marks
       .sort((a, b) => a.p - b.p)
       .forEach((m) => {
         const y = yOf(m.p);
-        if (placed.some((py) => Math.abs(py - y) < 14)) return;
+        if (placed.some((py) => Math.abs(py - y) < minGap)) return;
         placed.push(y);
         const right = CYL.x + CYL.w;
         ticks.insertAdjacentHTML(
@@ -796,7 +880,7 @@
 
   function bindChart(id) {
     const fig = $(id);
-    fig.addEventListener('pointermove', (e) => {
+    const hoverFromPointer = (e) => {
       const ch = charts[id];
       if (!ch || !thermoData) return;
       const rect = ch.svg.getBoundingClientRect();
@@ -806,9 +890,12 @@
         return;
       }
       setHover(clamp((px - VIZ.l) / ch.iw, 0, 1) * ch.c.xMax, id);
-    });
-    fig.addEventListener('pointerleave', () => {
-      if (document.activeElement !== fig) setHover(null);
+    };
+    fig.addEventListener('pointermove', hoverFromPointer);
+    fig.addEventListener('pointerdown', hoverFromPointer);
+    fig.addEventListener('pointerleave', (e) => {
+      // On touch the tooltip stays after lifting the finger, until tapping elsewhere
+      if (e.pointerType !== 'touch' && document.activeElement !== fig) setHover(null);
     });
     fig.addEventListener('focus', () => {
       if (thermoData) setHover(hoverT ?? thermoData.ok.fillEnd.t, id);
@@ -904,6 +991,7 @@
       if (typeof val === 'string') el.textContent = val;
     });
     document.title = dict.title;
+    $('resultBar').title = dict.toResult;
     $('cylinder').setAttribute('aria-label', dict.cylinderAria);
     document.querySelector('.material-picker').setAttribute('aria-label', dict.cylType);
     document.querySelectorAll('.lang-switch button').forEach((b) => {
@@ -913,7 +1001,18 @@
 
   function bind() {
     FIELDS.forEach((k) => {
-      $(k).addEventListener('input', (e) => setValue(k, e.target.value.replace(',', '.'), k));
+      const input = $(k);
+      input.addEventListener('input', (e) => setValue(k, e.target.value.replace(',', '.'), k));
+      // Select the value on focus so a new one can be typed right away
+      let keepSelection = false;
+      input.addEventListener('pointerdown', () => (keepSelection = document.activeElement !== input));
+      input.addEventListener('focus', () => {
+        try { input.select(); } catch (_) { /* not supported for this input type */ }
+      });
+      input.addEventListener('mouseup', (e) => {
+        if (keepSelection) e.preventDefault();
+        keepSelection = false;
+      });
     });
     TOGGLES.forEach((k) => {
       $(k).addEventListener('change', (e) => setValue(k, e.target.checked));
@@ -934,12 +1033,17 @@
     document.querySelectorAll('.lang-switch button').forEach((b) => {
       b.addEventListener('click', () => {
         state.lang = b.dataset.lang;
+        state.langChosen = true;
         applyLang();
         render();
         save();
       });
     });
     CHART_IDS.forEach(bindChart);
+    document.addEventListener('pointerdown', (e) => {
+      if (hoverT != null && !e.target.closest('.chart')) setHover(null);
+    });
+    watchResultBar();
     if (typeof ResizeObserver !== 'undefined') {
       let frame = 0;
       new ResizeObserver(() => {
@@ -950,6 +1054,8 @@
   }
 
   load();
+  // Phones start with the extra thermal settings folded away
+  $('moreSettings').open = !window.matchMedia('(max-width: 900px)').matches;
   bind();
   applyLang();
   syncControls();
