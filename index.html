@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#04121f">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gas blending for diving - ALHU">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Nitrox Top-Up Rechner</title>
   <meta name="description" content="Nitrox Top-Up Rechner: Wie viel O₂ und Luft muss in die Flasche? Partialdruck-Mischen einfach und visuell.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='20' y='12' width='24' height='46' rx='10' fill='%2322d3ee'/%3E%3Crect x='20' y='26' width='24' height='8' fill='%23facc15'/%3E%3Crect x='27' y='4' width='10' height='9' rx='2' fill='%2394a3b8'/%3E%3C/svg%3E">
@@ -35,10 +41,16 @@
         <p class="subtitle" data-i18n="subtitle">Partialdruck-Mischen: Was muss in die Flasche?</p>
       </div>
     </div>
-    <div class="lang-switch" role="group" aria-label="Sprache / Language">
-      <button type="button" data-lang="de" class="active">DE</button>
-      <button type="button" data-lang="en">EN</button>
+    <div class="top-actions">
+      <button type="button" id="installBtn" class="install-btn" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10M8 10l4 4 4-4M5 19h14"/></svg>
+      </button>
+      <div class="lang-switch" role="group" aria-label="Sprache / Language">
+        <button type="button" data-lang="de" class="active">DE</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
     </div>
+    <div id="installHint" class="install-hint" role="status" hidden></div>
   </header>
 
   <main class="layout">

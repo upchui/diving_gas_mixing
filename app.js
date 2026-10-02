@@ -46,6 +46,8 @@
       barPureO2: 'bar reiner O₂',
       noO2Needed: 'Kein Sauerstoff nötig – nur Luft auffüllen.',
       moreSettings: 'Weitere Einstellungen',
+      installApp: 'App installieren',
+      installHintIOS: 'Zum Installieren unten auf <svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 11v9h12v-9"/></svg> „Teilen“ tippen und dann „Zum Home-Bildschirm“ wählen.',
       realGasTitle: 'Realgas-Korrektur',
       realGasHint: 'Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.',
       idealCompare: (p) => `Ohne Realgas-Korrektur: ${p} bar`,
@@ -160,6 +162,8 @@
       barPureO2: 'bar pure O₂',
       noO2Needed: 'No oxygen needed – top up with air only.',
       moreSettings: 'More settings',
+      installApp: 'Install app',
+      installHintIOS: 'To install, tap <svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 11v9h12v-9"/></svg> “Share” and then “Add to Home Screen”.',
       realGasTitle: 'Real-gas correction',
       realGasHint: 'More accurate at high pressures: oxygen compresses more than an ideal gas, air less.',
       idealCompare: (p) => `Without real-gas correction: ${p} bar`,
@@ -254,8 +258,8 @@
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
       for (const k of Object.keys(DEFAULTS)) {
-        // The thermal model always starts switched on
-        if (k === 'thermoOn') continue;
+        // The real-gas correction and the thermal model always start switched on
+        if (k === 'realGas' || k === 'thermoOn') continue;
         // Keep a saved language only if the user picked it; otherwise follow the device
         if (k === 'lang' && !saved.langChosen) continue;
         if (k in saved) state[k] = saved[k];
@@ -946,6 +950,51 @@
     addRow(['–', L.evSettled, fmt(d.ok.pc), fmt(d.tAmb), fmt(d.naive.pc), fmt(d.tAmb)]);
   }
 
+  // ---------- Offline and install as app (PWA) ----------
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => { /* the page works without it */ });
+    });
+  }
+
+  function setupInstall() {
+    const btn = $('installBtn');
+    const hint = $('installHint');
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (standalone) return;
+    // Safari on iPhone/iPad has no install event: the button shows instructions instead
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    let installPrompt = null;
+    btn.hidden = !ios;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      installPrompt = e;
+      btn.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      installPrompt = null;
+      btn.hidden = true;
+      hint.hidden = true;
+    });
+    btn.addEventListener('click', async () => {
+      if (!installPrompt) {
+        hint.hidden = !hint.hidden;
+        return;
+      }
+      // A prompt can be used once; the browser fires a new event when it may ask again
+      const prompt = installPrompt;
+      installPrompt = null;
+      btn.hidden = true;
+      prompt.prompt();
+      await prompt.userChoice.catch(() => {});
+    });
+    document.addEventListener('pointerdown', (e) => {
+      if (!hint.hidden && !e.target.closest('#installHint, #installBtn')) hint.hidden = true;
+    });
+  }
+
   // ---------- Inputs ----------
   function syncControls(skipId) {
     FIELDS.forEach((k) => {
@@ -987,6 +1036,9 @@
     });
     document.title = dict.title;
     $('resultBar').title = dict.toResult;
+    $('installBtn').title = dict.installApp;
+    $('installBtn').setAttribute('aria-label', dict.installApp);
+    $('installHint').innerHTML = dict.installHintIOS;
     $('cylinder').setAttribute('aria-label', dict.cylinderAria);
     document.querySelector('.material-picker').setAttribute('aria-label', dict.cylType);
     document.querySelectorAll('.lang-switch button').forEach((b) => {
@@ -1055,4 +1107,6 @@
   applyLang();
   syncControls();
   render();
+  setupInstall();
+  registerServiceWorker();
 })();

@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Gas blending for diving - ALHU",
+  "short_name": "Gas blending for diving - ALHU",
+  "description": "Nitrox top-up calculator: O₂ and air gauge targets for partial pressure blending, with real-gas and heating correction. Works offline.",
+  "lang": "en",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#04121f",
+  "theme_color": "#04121f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -6,6 +6,15 @@ A free calculator for **partial pressure nitrox blending**. It tells you how muc
 
 It runs entirely in your browser, works on a phone at the fill station, and is available in English and German (it follows your device language). Your inputs are remembered in your browser.
 
+## Install as an app
+
+The calculator can be installed like an app and then also works **offline**, for example at a fill station without reception.
+
+- **Android, Chrome, Edge:** tap the install button (arrow icon) next to DE/EN, or use the browser menu ("Install app" / "Add to Home screen").
+- **iPhone, iPad:** in Safari tap *Share* and then *Add to Home Screen*. The install button next to DE/EN shows these steps too.
+
+After the first visit everything the calculator needs is stored on the device. Whenever you are online it loads the current version and refreshes the offline copy.
+
 ## What it does
 
 You have a cylinder with some gas left in it and want a specific nitrox mix at a specific pressure. With partial pressure blending you first add pure oxygen, then top up with air from the compressor. The calculator works out:
@@ -156,6 +165,8 @@ A static page with no build step and no dependencies:
 python -m http.server 8000
 # then open http://localhost:8000
 ```
+
+Offline use and installing need HTTPS or `localhost`, because browsers only run the service worker ([sw.js](sw.js)) there.
 
 Or with Docker (nginx, port 8381):
 
