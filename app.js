@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  const AIR_O2 = 0.21;
   const STORAGE_KEY = 'nitrox-topup-v1';
   // German if the device's primary language is German, otherwise English
   const deviceLang = () => {
@@ -10,7 +9,7 @@
   };
   const DEFAULTS = {
     curO2: 21, tgtO2: 32, size: 12, curP: 50, fillP: 200, lang: deviceLang(), langChosen: false,
-    thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false,
+    realGas: true, thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false,
   };
 
   const I18N = {
@@ -47,6 +46,9 @@
       barPureO2: 'bar reiner O₂',
       noO2Needed: 'Kein Sauerstoff nötig – nur Luft auffüllen.',
       moreSettings: 'Weitere Einstellungen',
+      realGasTitle: 'Realgas-Korrektur',
+      realGasHint: 'Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.',
+      idealCompare: (p) => `Ohne Realgas-Korrektur: ${p} bar`,
       pauseShort: 'Pause nach O₂',
       rbO2: 'O₂ bis',
       rbAir: 'Luft bis',
@@ -158,6 +160,9 @@
       barPureO2: 'bar pure O₂',
       noO2Needed: 'No oxygen needed – top up with air only.',
       moreSettings: 'More settings',
+      realGasTitle: 'Real-gas correction',
+      realGasHint: 'More accurate at high pressures: oxygen compresses more than an ideal gas, air less.',
+      idealCompare: (p) => `Without real-gas correction: ${p} bar`,
       pauseShort: 'pause after O₂',
       rbO2: 'O₂ to',
       rbAir: 'Air to',
@@ -241,7 +246,7 @@
 
   const $ = (id) => document.getElementById(id);
   const FIELDS = ['curO2', 'tgtO2', 'size', 'curP', 'fillP', 'tAmb', 'rate'];
-  const TOGGLES = ['thermoOn', 'waterBath', 'coolPause'];
+  const TOGGLES = ['realGas', 'thermoOn', 'waterBath', 'coolPause'];
   const state = { ...DEFAULTS };
 
   // ---------- Storage ----------
@@ -270,46 +275,8 @@
     n.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
   const fmtInt = (n) => Math.round(n).toLocaleString(locale());
   const fmtAuto = (n) => fmt(n, Number.isInteger(n) ? 0 : 1);
-  // Round tiny negatives (floating point noise) to zero
-  const clean = (n) => (Math.abs(n) < 1e-9 ? 0 : n);
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
   const durText = (sec) => (sec == null ? t('moreThan')(240) : t('minutes')(fmtInt(sec / 60)));
-
-  // ---------- Calculation ----------
-  /**
-   * Partial pressure top-up with pure O2 then air.
-   * Returns pressures in bar; `keep` is the pressure to bleed down to before filling.
-   */
-  function calculate({ curO2, tgtO2, curP, fillP }) {
-    const f1 = curO2 / 100;
-    const f2 = tgtO2 / 100;
-    let keep = curP;
-    let drain = null;
-
-    let o2 = (fillP * (f2 - AIR_O2) - keep * (f1 - AIR_O2)) / (1 - AIR_O2);
-    let air = fillP - keep - o2;
-
-    if (o2 < -1e-9) {
-      // Too much O2 in residual gas: bleed so that air alone reaches target
-      keep = (fillP * (f2 - AIR_O2)) / (f1 - AIR_O2);
-      o2 = 0;
-      air = fillP - keep;
-      drain = 'lean';
-    } else if (air < -1e-9) {
-      // Too much N2 in residual gas: bleed so that pure O2 alone reaches target
-      keep = (fillP * (1 - f2)) / (1 - f1);
-      o2 = fillP - keep;
-      air = 0;
-      drain = 'rich';
-    }
-
-    keep = Math.max(0, clean(keep));
-    o2 = Math.max(0, clean(o2));
-    air = Math.max(0, clean(air));
-
-    const finalO2 = ((keep * f1 + o2 + air * AIR_O2) / fillP) * 100;
-    return { keep, o2, air, drain, finalO2 };
-  }
 
   function validate(v) {
     if ([v.curO2, v.tgtO2].some((x) => !Number.isFinite(x) || x < 21 || x > 100)) return 'errO2Range';
@@ -354,6 +321,22 @@
     return { ok, naive, event, coolSec: cooled ? cooled.t - ok.fillEnd.t : null };
   }
 
+  // Warm gauge reading at the end of the O2 step for the ideal-gas target
+  function idealWarmO2(v, rIdeal) {
+    const sim = Thermo.simulateFill({
+      liters: v.size,
+      material: state.material,
+      tAmbC: v.tAmb,
+      rate: v.rate,
+      waterBath: state.waterBath,
+      keep: rIdeal.keep,
+      f1: v.curO2 / 100,
+      stages: [{ gas: 'o2', stopAt: 'gas', value: rIdeal.keep + rIdeal.o2 }],
+      coolMinutes: 0,
+    });
+    return sim.events[0].p;
+  }
+
   // ---------- Rendering ----------
   const CYL = { top: 70, bottom: 400, x: 40, w: 110 };
 
@@ -380,7 +363,7 @@
     if (err) {
       errBox.textContent = L[err];
       errBox.hidden = false;
-      ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'heroCold', 'airCold'].forEach((id) => ($(id).hidden = true));
+      ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'heroCold', 'airCold', 'heroIdeal'].forEach((id) => ($(id).hidden = true));
       tiles.classList.add('dim');
       hero.classList.add('dim');
       ['o2Bar', 'airBar', 'o2L', 'airL', 'factMix', 'factTotal', 'factMod14', 'factMod16',
@@ -396,7 +379,9 @@
     tiles.classList.remove('dim');
     hero.classList.remove('dim');
 
-    const r = calculate(v);
+    // Real gas: amounts from the compressibility factor at the (cooled) cylinder temperature
+    const tK = (state.thermoOn ? v.tAmb : 20) + 273.15;
+    const r = state.realGas ? Blend.real(v, tK) : Blend.ideal(v);
     const afterO2 = r.keep + r.o2;
     const needsO2 = r.o2 > 0.05;
     const needsAir = r.air > 0.05;
@@ -409,7 +394,7 @@
     $('o2Target').textContent = fmt(gaugeO2);
     $('o2From').textContent = fmt(r.keep);
     $('o2TargetSub').textContent = fmt(gaugeO2);
-    $('o2Delta').textContent = th ? fmtInt(r.o2 * v.size) : `+${fmt(r.o2)}`;
+    $('o2Delta').textContent = th ? fmtInt(r.litersO2 ?? r.o2 * v.size) : `+${fmt(r.o2)}`;
     $('o2DeltaLabel').textContent = th ? L.litersO2 : L.barPureO2;
     $('heroSub').hidden = !needsO2;
     $('heroNone').hidden = needsO2;
@@ -419,6 +404,11 @@
     $('heroCold').hidden = !(th && needsO2);
     $('o2Heat').textContent = L.heatDelta(fmt(gaugeO2 - afterO2));
     $('o2ColdText').textContent = L.coldEq(fmt(afterO2));
+    // Same basis as the big number: warm reading when the heating model is on
+    const rIdeal = state.realGas ? Blend.ideal(v) : null;
+    const showIdeal = needsO2 && rIdeal && rIdeal.o2 > 0.05;
+    $('heroIdeal').hidden = !showIdeal;
+    if (showIdeal) $('heroIdeal').textContent = L.idealCompare(fmt(th ? idealWarmO2(v, rIdeal) : rIdeal.keep + rIdeal.o2));
     $('drainBadge').hidden = !r.drain;
     if (r.drain) $('drainBadge').textContent = L.drainFirst(fmt(r.keep));
     setGauge(r, v.fillP);
@@ -434,8 +424,8 @@
 
     $('o2Bar').textContent = fmt(r.o2);
     $('airBar').textContent = fmt(r.air);
-    $('o2L').textContent = fmtInt(r.o2 * v.size);
-    $('airL').textContent = fmtInt(r.air * v.size);
+    $('o2L').textContent = fmtInt(r.litersO2 ?? r.o2 * v.size);
+    $('airL').textContent = fmtInt(r.litersAir ?? r.air * v.size);
 
     const drainBox = $('drainAlert');
     if (r.drain) {
@@ -464,7 +454,7 @@
     // Facts
     const f2 = v.tgtO2 / 100;
     $('factMix').textContent = `${fmt(r.finalO2)} % O₂`;
-    $('factTotal').textContent = `${fmtInt(v.fillP * v.size)} L`;
+    $('factTotal').textContent = `${fmtInt(r.litersTotal ?? v.fillP * v.size)} L`;
     $('factMod14').textContent = `${fmt((1.4 / f2 - 1) * 10)} m`;
     $('factMod16').textContent = `${fmt((1.6 / f2 - 1) * 10)} m`;
 
@@ -472,7 +462,7 @@
     updateResultBar({
       drain: r.drain ? fmt(r.keep) : null, needsO2, needsAir, o2: fmt(gaugeO2), air: fmt(gaugeEnd), warm: !!th,
     });
-    renderThermo(th, v, r, needsO2, needsAir);
+    renderThermo(th, v, r, needsO2, needsAir, tK);
   }
 
   // Phones: compact summary of the gauge targets, pinned to the bottom of the screen
@@ -641,7 +631,7 @@
     return t(type === 'o2' ? 'evO2' : type === 'pause' ? 'evPause' : 'evAir');
   }
 
-  function renderThermo(th, v, r, needsO2, needsAir) {
+  function renderThermo(th, v, r, needsO2, needsAir, tK) {
     const sec = $('thermoSection');
     if (!th) {
       sec.hidden = true;
@@ -665,7 +655,12 @@
     const how = [needsO2 && L.naiveHowO2(fmt(r.keep + r.o2)), needsAir && L.naiveHowAir(fmt(v.fillP))]
       .filter(Boolean)
       .join(L.and);
-    $('naiveBox').innerHTML = L.naiveText(how, fmt(naive.pc), fmt(naive.o2Fraction * 100), fmt(v.fillP), fmt(v.tgtO2));
+    // With the real-gas model, the mix after cooling follows from the cold stage pressures
+    const naiveO2End = naive.events.find((e) => e.type === 'o2');
+    const naiveMix = state.realGas
+      ? Blend.mixAfter(v.curO2 / 100, r.keep, naiveO2End ? naiveO2End.pc : r.keep, naive.pc, tK, v.size / 1000)
+      : naive.o2Fraction * 100;
+    $('naiveBox').innerHTML = L.naiveText(how, fmt(naive.pc), fmt(naiveMix), fmt(v.fillP), fmt(v.tgtO2));
 
     // Show filling plus cooling until within 2 K of ambient (10–120 min after the fill)
     const coolEnd = ok.fillEnd.t + (th.coolSec ?? 120 * 60);

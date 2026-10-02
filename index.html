@@ -137,6 +137,18 @@
         </div>
       </div>
 
+      <div class="card realgas-card">
+        <div class="card-head">
+          <span class="dot dot-realgas"></span>
+          <h3 id="realGasHead" data-i18n="realGasTitle">Realgas-Korrektur</h3>
+          <label class="switch switch-head">
+            <input type="checkbox" id="realGas" aria-labelledby="realGasHead">
+            <span class="switch-track" aria-hidden="true"></span>
+          </label>
+        </div>
+        <p class="card-hint" data-i18n="realGasHint">Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.</p>
+      </div>
+
       <div class="card thermo-card">
         <div class="card-head">
           <span class="dot dot-thermo"></span>
@@ -256,6 +268,7 @@
               <span id="o2Heat" class="heat-delta"></span>
               <span id="o2ColdText"></span>
             </div>
+            <div id="heroIdeal" class="hero-ideal" hidden></div>
             <div id="heroNone" class="hero-sub" hidden data-i18n="noO2Needed">Kein Sauerstoff nötig – nur Luft auffüllen.</div>
             <div class="gauge-bar" aria-hidden="true">
               <span id="gaugeResidual" class="seg seg-residual"></span>
@@ -440,6 +453,7 @@
     <svg class="rb-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
   </button>
 
+  <script src="blend.js"></script>
   <script src="thermo.js"></script>
   <script src="app.js"></script>
 </body>

@@ -327,6 +327,8 @@ h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 1.9rem); letter-spacing: -0.02em;
 
 /* ---------- Thermo: input card ---------- */
 .dot-thermo { background: #fb923c; color: #fb923c; }
+.dot-realgas { background: #a78bfa; color: #a78bfa; }
+.hero-ideal { margin-top: 6px; color: #a7f3d0; opacity: 0.85; font-size: 0.85rem; }
 .card-hint { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.45; }
 #thermoBody { margin-top: 14px; padding-top: 14px; border-top: 1px dashed rgba(125, 211, 252, 0.12); }
 

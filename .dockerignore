@@ -5,3 +5,5 @@ LICENSE
 Dockerfile
 docker-compose.yml
 .dockerignore
+tests
+package.json

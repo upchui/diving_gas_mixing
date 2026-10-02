@@ -115,7 +115,7 @@
     }
 
     const fillEnd = { t, p: gauge(), tC: tg - 273.15 };
-    cool((o.coolMinutes || 240) * 60, 0.5);
+    cool((o.coolMinutes ?? 240) * 60, 0.5);
     sample();
 
     return {
