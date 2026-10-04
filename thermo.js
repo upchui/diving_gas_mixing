@@ -39,7 +39,9 @@
    * @param {object} o
    *   liters, material, tAmbC, rate (bar/min), waterBath,
    *   keep (bar, residual at ambient), f1 (residual O2 fraction),
-   *   stages: [{ gas: 'o2'|'air', stopAt: 'gas'|'gauge', value: bar, pauseAfter: bool }],
+   *   stages: [{ gas: 'o2'|'air', stopAt: 'gas'|'gauge', value: bar, pauseAfter: bool,
+   *              pauseMinutes (fixed pause; default: until within 2 K, max 45 min),
+   *              id (event type; default: gas) }],
    *   coolMinutes (max. cooling time, stops earlier within 0.5 K of ambient)
    */
   function simulateFill(o) {
@@ -96,20 +98,31 @@
       let guard = 0;
       while (guard++ < 200000) {
         let dpc = dpcStep;
+        let last = false;
         if (st.stopAt === 'gas') {
           if (pc >= st.value - 1e-9) break;
           dpc = Math.min(dpc, st.value - pc);
-        } else if (gauge() >= st.value - 1e-9) {
-          break;
+        } else {
+          // Gas that still fits before the gauge shows the value. The step that
+          // reaches it is the last one, so the fill does not chase the cooling gas.
+          const room = (st.value * tAmb) / tg - pc;
+          if (room <= 1e-9) break;
+          if (room < dpc) {
+            dpc = room;
+            last = true;
+          }
         }
         o2 += dpc * frac;
         step(dpc);
+        if (last) break;
       }
-      events.push({ type: st.gas, t, p: gauge(), pc, tC: tg - 273.15 });
+      const id = st.id || st.gas;
+      events.push({ type: id, t, p: gauge(), pc, tC: tg - 273.15 });
       sample();
       if (st.pauseAfter) {
-        cool(45 * 60, 2);
-        events.push({ type: 'pause', t, p: gauge(), pc, tC: tg - 273.15 });
+        if (st.pauseMinutes != null) cool(st.pauseMinutes * 60);
+        else cool(45 * 60, 2);
+        events.push({ type: 'pause', stage: id, t, p: gauge(), pc, tC: tg - 273.15 });
         sample();
       }
     }

@@ -399,6 +399,8 @@ h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 1.9rem); letter-spacing: -0.02em;
 .hero-air-head { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hero-air-text .hero-cold { margin-top: 4px; }
 .hero-air.dim { opacity: 0.5; }
+.hero-topup { display: block; margin-top: 6px; font-size: 0.92rem; line-height: 1.45; color: var(--text); }
+.hero-topup strong { color: #fff; font-size: 1.05rem; }
 .steps li.s-pause { --step-color: #fb923c; }
 
 /* ---------- Thermo: results card + charts ---------- */

@@ -49,6 +49,7 @@ This part of the calculator is **switched on by default** and can be turned off.
 - **Fill rate** in bar per minute
 - **Water bath:** the cylinder stands in water while filling
 - **Let cool after O₂:** you pause after the oxygen step before topping up with air
+- **Let cool after the air fill, then top up:** instead of filling far above the target in one go, you fill air only up to the target pressure, let the cylinder cool for a pause you choose (15–90 min), and then top up to a calculated value so it sits exactly at the target once cold
 
 You get the warm targets (marked "read warm") together with how many bar of each target are due to heating, the peak gas temperature, the pressure drop and the cool-down time, charts of pressure and temperature over time, and a comparison with what you would end up with **without** the correction.
 
@@ -59,9 +60,18 @@ A 12 L carbon cylinder with 70 bar of EAN32, and you want EAN32 at 220 bar, fill
 | | Fill to (gauge) | After cooling |
 |---|---|---|
 | With correction | O₂ to **92.6 bar**, air to **245.7 bar** (read warm) | 220 bar, 32.0 % O₂ |
-| Without correction | O₂ to 88.6 bar, air to 220 bar (read warm) | **198.5 bar, 31.6 % O₂** |
+| Without correction | O₂ to 88.6 bar, air to 220 bar (read warm) | **198.4 bar, 31.6 % O₂** |
 
 In this example the gas peaks at about 54 °C and takes about 2½ hours to cool to within 2 °C of ambient.
+
+Filling in two steps instead (12 L, 50 bar of air → EAN32 at 220 bar, 10 bar/min, 20 °C, 30 min pause):
+
+| Cylinder | One go: air to | Two steps: air to 220 bar, after 30 min | then top up to | Cold |
+|---|---|---|---|---|
+| Steel | 235.1 bar | 211.9 bar | **228.2 bar** | 220 bar |
+| Carbon | 248.1 bar | 208.2 bar | **238.3 bar** | 220 bar |
+
+The longer the pause, the less you need to top up. Carbon cylinders keep their heat much longer than steel.
 
 Typical model results when filling a 12 L cylinder from 50 bar of air to EAN32 at 200 bar (10 bar/min, 20 °C):
 
@@ -176,6 +186,8 @@ docker compose up -d --build
 ```
 
 Stop it with `docker compose down`.
+
+The Docker build adds a content hash to the script and style URLs (`app.js?v=…`) and nginx sends matching cache headers, so a CDN such as Cloudflare never mixes old and new files after an update.
 
 Run the tests (Node 18 or newer, no dependencies):
 

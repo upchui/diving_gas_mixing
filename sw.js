@@ -8,15 +8,19 @@
  */
 'use strict';
 
-const CACHE = 'nitrox-app-v1';
+// Replaced with a content hash when the Docker image is built (see Dockerfile);
+// the page then loads the same versioned files, e.g. app.js?v=<hash>
+const VERSION = 'dev';
+const CACHE = `nitrox-app-${VERSION}`;
+const V = VERSION === 'dev' ? '' : `?v=${VERSION}`;
 const NETWORK_TIMEOUT = 3000; // ms
 const ASSETS = [
   './',
   'index.html',
-  'style.css',
-  'app.js',
-  'blend.js',
-  'thermo.js',
+  'style.css' + V,
+  'app.js' + V,
+  'blend.js' + V,
+  'thermo.js' + V,
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',

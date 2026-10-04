@@ -60,3 +60,16 @@ test('the Docker image contains every file the app needs offline', () => {
     assert.ok(copied, `${file} is not copied in the Dockerfile`);
   }
 });
+
+test('the Docker build can version scripts and styles', () => {
+  const sw = read('sw.js');
+  assert.equal((sw.match(/const VERSION = 'dev';/g) || []).length, 1, 'version placeholder in sw.js');
+  const html = read('index.html');
+  const dockerfile = read('Dockerfile');
+  for (const file of ['style.css', 'blend.js', 'thermo.js', 'app.js']) {
+    const attr = file.endsWith('.css') ? 'href' : 'src';
+    assert.equal(html.split(`${attr}="${file}"`).length - 1, 1, `index.html references ${attr}="${file}" once`);
+    assert.ok(dockerfile.includes(file.replace('.', '\\.')), `${file} is versioned in the Dockerfile`);
+  }
+  assert.ok(dockerfile.includes('nginx.conf'), 'the nginx cache rules are copied');
+});

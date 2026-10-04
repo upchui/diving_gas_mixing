@@ -9,7 +9,7 @@
   };
   const DEFAULTS = {
     curO2: 21, tgtO2: 32, size: 12, curP: 50, fillP: 200, lang: deviceLang(), langChosen: false,
-    realGas: true, thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false,
+    realGas: true, thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false, airTopUp: false, airPause: 30,
   };
 
   const I18N = {
@@ -77,6 +77,15 @@
       rateFast: 'schnell',
       waterBath: 'Wasserbad',
       coolPause: 'Nach O₂ abkühlen lassen',
+      airTopUp: 'Nach dem Luftfüllen abkühlen lassen und nachfüllen',
+      airPause: 'Abkühlpause',
+      evAirFirst: 'Luft fertig',
+      evTopUp: 'Nachgefüllt',
+      topUpShort: (m) => `Nachfüllen nach ${m} min`,
+      topUpLine: (m, p, to) => `Nach ${m} min Abkühlen fällt es auf ca. ${p} bar – dann nachfüllen bis <strong>${to} bar</strong>`,
+      stepAirFirst: (to) => `Mit Luft auffüllen, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Erst einmal nur bis zum Zieldruck. Das Gas ist dabei warm, nach der Pause wird nachgefüllt.</span>`,
+      stepAirTopUp: (to, cold) => `Mit Luft nachfüllen, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Nach dem Abkühlen fällt der Druck auf ${cold} bar.</span>`,
+      naiveHowTopUp: (p) => `Luft bis ${p} bar und nach der Pause wieder bis ${p} bar`,
       warmRead: 'warm ablesen',
       thermoResults: 'Thermomodell: Füllen & Abkühlen',
       kpiTmax: 'Max. Gastemperatur',
@@ -116,6 +125,7 @@
       errFillLower: 'Der Fülldruck muss höher sein als der aktuelle Druck.',
       errTemp: 'Umgebungstemperatur muss zwischen −10 und 45 °C liegen.',
       errRate: 'Füllgeschwindigkeit muss zwischen 0,5 und 60 bar/min liegen.',
+      errAirPause: 'Die Abkühlpause muss zwischen 5 und 240 min liegen.',
       drainLean: (keep, cur) => `Das Restgas enthält zu viel Sauerstoff für das Zielgemisch. Flasche erst von <strong>${cur} bar</strong> auf <strong>${keep} bar</strong> ablassen.`,
       drainRich: (keep, cur) => `Zu viel Stickstoff in der Flasche – selbst reiner O₂ reicht nicht. Flasche erst von <strong>${cur} bar</strong> auf <strong>${keep} bar</strong> ablassen.`,
       stepDrain: (keep) => `Flasche auf <strong>${keep} bar</strong> ablassen`,
@@ -126,6 +136,8 @@
       stepAirHot: (to, cold) => `Mit Luft auffüllen, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Das Gas ist dabei warm. Nach dem Abkühlen fällt der Druck auf ${cold} bar.</span>`,
       stepCool: (dur, p, mix) => `Abkühlen lassen (ca. ${dur}) – das Manometer fällt auf ca. <strong>${p} bar</strong>. Dann analysieren – Soll: <strong>${mix} % O₂</strong>`,
       stepNoO2: 'Kein Sauerstoff nötig',
+      lessThanMinute: '< 1 min',
+      topUpFirstLine: (m, p) => `Erst ${m} min abkühlen lassen (fällt auf ca. ${p} bar), dann mit Luft auffüllen`,
       stepNoAir: 'Keine Luft nötig',
       stepAnalyze: (mix) => `Abkühlen lassen, Gemisch analysieren – Soll: <strong>${mix} % O₂</strong>`,
     },
@@ -192,6 +204,15 @@
       rateFast: 'fast',
       waterBath: 'Water bath',
       coolPause: 'Let cool after O₂',
+      airTopUp: 'Let cool after the air fill, then top up',
+      airPause: 'Cooling pause',
+      evAirFirst: 'Air done',
+      evTopUp: 'Topped up',
+      topUpShort: (m) => `top-up after ${m} min`,
+      topUpLine: (m, p, to) => `After cooling for ${m} min it drops to about ${p} bar – then top up to <strong>${to} bar</strong>`,
+      stepAirFirst: (to) => `Top up with air until the gauge reads <strong>${to} bar</strong><span class="step-note">Only up to the target pressure for now. The gas is warm; you top up after the pause.</span>`,
+      stepAirTopUp: (to, cold) => `Top up with air again until the gauge reads <strong>${to} bar</strong><span class="step-note">Once it cools, the pressure drops to ${cold} bar.</span>`,
+      naiveHowTopUp: (p) => `air to ${p} bar and again to ${p} bar after the pause`,
       warmRead: 'read warm',
       thermoResults: 'Thermal model: filling & cooling',
       kpiTmax: 'Peak gas temperature',
@@ -230,6 +251,7 @@
       errFillLower: 'Fill pressure must be higher than current pressure.',
       errTemp: 'Ambient temperature must be between −10 and 45 °C.',
       errRate: 'Fill rate must be between 0.5 and 60 bar/min.',
+      errAirPause: 'The cooling pause must be between 5 and 240 min.',
       drainLean: (keep, cur) => `The residual gas holds too much oxygen for the requested mix. Bleed the cylinder from <strong>${cur} bar</strong> down to <strong>${keep} bar</strong> first.`,
       drainRich: (keep, cur) => `Too much nitrogen in the cylinder – even pure O₂ won't get there. Bleed the cylinder from <strong>${cur} bar</strong> down to <strong>${keep} bar</strong> first.`,
       stepDrain: (keep) => `Bleed cylinder down to <strong>${keep} bar</strong>`,
@@ -240,6 +262,8 @@
       stepAirHot: (to, cold) => `Top up with air until the gauge reads <strong>${to} bar</strong><span class="step-note">The gas is warm at this point. Once it cools, the pressure drops to ${cold} bar.</span>`,
       stepCool: (dur, p, mix) => `Let it cool (approx. ${dur}) – the gauge drops to about <strong>${p} bar</strong>. Then analyse – target: <strong>${mix} % O₂</strong>`,
       stepNoO2: 'No oxygen needed',
+      lessThanMinute: '< 1 min',
+      topUpFirstLine: (m, p) => `Let it cool for ${m} min first (drops to about ${p} bar), then top up with air`,
       stepNoAir: 'No air needed',
       stepAnalyze: (mix) => `Let it cool, analyse the mix – target: <strong>${mix} % O₂</strong>`,
     },
@@ -248,9 +272,11 @@
   const MAT_LABEL = { steel: 'matSteel', alu: 'matAlu', carbon: 'matCarbon', steelCarbon: 'matSteelCarbon' };
   const MAT_HINT = { steel: 'hintSteel', alu: 'hintAlu', carbon: 'hintCarbon', steelCarbon: 'hintSteelCarbon' };
 
-  const $ = (id) => document.getElementById(id);
-  const FIELDS = ['curO2', 'tgtO2', 'size', 'curP', 'fillP', 'tAmb', 'rate'];
-  const TOGGLES = ['realGas', 'thermoOn', 'waterBath', 'coolPause'];
+  // A missing element (e.g. from an older cached index.html) gets a detached stand-in
+  // instead of stopping the whole app
+  const $ = (id) => document.getElementById(id) || document.createElement('div');
+  const FIELDS = ['curO2', 'tgtO2', 'size', 'curP', 'fillP', 'tAmb', 'rate', 'airPause'];
+  const TOGGLES = ['realGas', 'thermoOn', 'waterBath', 'coolPause', 'airTopUp'];
   const state = { ...DEFAULTS };
 
   // ---------- Storage ----------
@@ -280,7 +306,11 @@
   const fmtInt = (n) => Math.round(n).toLocaleString(locale());
   const fmtAuto = (n) => fmt(n, Number.isInteger(n) ? 0 : 1);
   const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
-  const durText = (sec) => (sec == null ? t('moreThan')(240) : t('minutes')(fmtInt(sec / 60)));
+  const durText = (sec) => {
+    if (sec == null) return t('moreThan')(240);
+    if (sec < 60) return t('lessThanMinute');
+    return t('minutes')(fmtInt(sec / 60));
+  };
 
   function validate(v) {
     if ([v.curO2, v.tgtO2].some((x) => !Number.isFinite(x) || x < 21 || x > 100)) return 'errO2Range';
@@ -290,6 +320,7 @@
     if (state.thermoOn) {
       if (!Number.isFinite(v.tAmb) || v.tAmb < -10 || v.tAmb > 45) return 'errTemp';
       if (!Number.isFinite(v.rate) || v.rate < 0.5 || v.rate > 60) return 'errRate';
+      if (state.airTopUp && (!Number.isFinite(v.airPause) || v.airPause < 5 || v.airPause > 240)) return 'errAirPause';
     }
     return null;
   }
@@ -300,12 +331,19 @@
    * shows the cold target value).
    */
   function runThermo(v, r, needsO2, needsAir) {
+    const topUp = state.airTopUp && needsAir;
     const run = (stopAt) => {
       const stages = [];
       if (needsO2) {
         stages.push({ gas: 'o2', stopAt, value: r.keep + r.o2, pauseAfter: state.coolPause && needsAir });
       }
-      if (needsAir) stages.push({ gas: 'air', stopAt, value: v.fillP });
+      if (topUp) {
+        // Air up to the target on the warm gauge, cool for a while, then top up
+        stages.push({ gas: 'air', stopAt: 'gauge', value: v.fillP, pauseAfter: true, pauseMinutes: v.airPause });
+        stages.push({ gas: 'air', id: 'topUp', stopAt, value: v.fillP });
+      } else if (needsAir) {
+        stages.push({ gas: 'air', stopAt, value: v.fillP });
+      }
       return Thermo.simulateFill({
         liters: v.size,
         material: state.material,
@@ -319,10 +357,17 @@
     };
     const ok = run('gas');
     const naive = run('gauge');
-    const event = (type) => ok.events.find((e) => e.type === type);
+    const event = (type, stage) => ok.events.find((e) => e.type === type && (stage == null || e.stage === stage));
     // Seconds after the end of filling until the gas is within 2 K of ambient
     const cooled = ok.samples.find((s) => s.t > ok.fillEnd.t && s.tC - v.tAmb < 2);
-    return { ok, naive, event, coolSec: cooled ? cooled.t - ok.fillEnd.t : null };
+    // The warm gauge can already be above the target after the O2 step; then the first
+    // air fill adds nothing and the procedure is just: cool down, then fill air
+    let skipFirstAir = false;
+    if (topUp) {
+      const o2End = event('o2');
+      skipFirstAir = event('air').pc - (o2End ? o2End.pc : r.keep) < 0.05;
+    }
+    return { ok, naive, event, topUp, skipFirstAir, coolSec: cooled ? cooled.t - ok.fillEnd.t : null };
   }
 
   // Warm gauge reading at the end of the O2 step for the ideal-gas target
@@ -350,15 +395,20 @@
     const L = I18N[state.lang];
 
     $('materialHint').textContent = L[MAT_HINT[state.material]];
+    $('factMod14Label').textContent = `MOD ppO₂ ${fmt(1.4)}`;
+    $('factMod16Label').textContent = `MOD ppO₂ ${fmt(1.6)}`;
     // With the thermal model on, the small tiles show amounts after cooling, not the warm gauge rise
     $('o2TileLabel').textContent = state.thermoOn ? L.addO2Cooled : L.addO2;
     $('airTileLabel').textContent = state.thermoOn ? L.addAirCooled : L.addAir;
     const num = (x) => (Number.isFinite(x) ? fmtAuto(x) : '–');
     $('settingsSummary').textContent = [
       `${num(v.tAmb)} °C`, `${num(v.rate)} bar/min`, state.waterBath && L.waterBath, state.coolPause && L.pauseShort,
+      state.airTopUp && L.topUpShort(num(v.airPause)),
     ].filter(Boolean).join(' · ');
 
     const err = validate(v);
+    // Make an invalid field in the folded "More settings" visible
+    if (err === 'errTemp' || err === 'errRate' || err === 'errAirPause') $('moreSettings').open = true;
     markInvalid(err);
     const errBox = $('error');
     const tiles = $('resultTiles');
@@ -367,7 +417,7 @@
     if (err) {
       errBox.textContent = L[err];
       errBox.hidden = false;
-      ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'heroCold', 'airCold', 'heroIdeal'].forEach((id) => ($(id).hidden = true));
+      ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'heroCold', 'airCold', 'heroIdeal', 'airTopUpRow'].forEach((id) => ($(id).hidden = true));
       tiles.classList.add('dim');
       hero.classList.add('dim');
       ['o2Bar', 'airBar', 'o2L', 'airL', 'factMix', 'factTotal', 'factMod14', 'factMod16',
@@ -420,7 +470,18 @@
     $('heroAirLabel').textContent = needsAir ? L.thenAirTo : L.noAirNeeded;
     $('heroAirValue').hidden = !needsAir;
     $('heroAir').classList.toggle('dim', !needsAir);
-    $('airTarget').textContent = fmt(gaugeEnd);
+    // Two-step air fill: the first fill goes only up to the target, the top-up value follows
+    const topUp = th && th.topUp;
+    const skipFirst = topUp && th.skipFirstAir;
+    $('airTarget').textContent = fmt(topUp && !skipFirst ? v.fillP : gaugeEnd);
+    $('airTopUpRow').hidden = !topUp;
+    $('airHeat').hidden = !!topUp;
+    if (topUp) {
+      const afterPause = fmt(th.event('pause', 'air').p);
+      $('airTopUpRow').innerHTML = skipFirst
+        ? L.topUpFirstLine(fmtAuto(v.airPause), afterPause)
+        : L.topUpLine(fmtAuto(v.airPause), afterPause, fmt(gaugeEnd));
+    }
     $('warmBadgeAir').hidden = !(th && needsAir);
     $('airCold').hidden = !(th && needsAir);
     $('airHeat').textContent = L.heatDelta(fmt(gaugeEnd - v.fillP));
@@ -444,9 +505,19 @@
     if (r.drain) steps.push(['s-drain', L.stepDrain(fmt(r.keep))]);
     if (th) {
       steps.push(['s-o2', needsO2 ? L.stepO2Hot(fmt(gaugeO2), fmt(afterO2)) : L.stepNoO2]);
-      const pause = th.event('pause');
-      if (pause) steps.push(['s-pause', L.stepPause(durText(pause.t - th.event('o2').t), fmt(pause.p))]);
-      steps.push(['s-air', needsAir ? L.stepAirHot(fmt(gaugeEnd), fmt(v.fillP)) : L.stepNoAir]);
+      const pause = th.event('pause', 'o2');
+      // A pause shorter than a minute means the gas was already cool: no step for it
+      if (pause && pause.t - th.event('o2').t >= 60) {
+        steps.push(['s-pause', L.stepPause(durText(pause.t - th.event('o2').t), fmt(pause.p))]);
+      }
+      if (topUp) {
+        const airPause = th.event('pause', 'air');
+        if (!skipFirst) steps.push(['s-air', L.stepAirFirst(fmt(v.fillP))]);
+        steps.push(['s-pause', L.stepPause(durText(airPause.t - th.event('air').t), fmt(airPause.p))]);
+        steps.push(['s-air', (skipFirst ? L.stepAirHot : L.stepAirTopUp)(fmt(gaugeEnd), fmt(v.fillP))]);
+      } else {
+        steps.push(['s-air', needsAir ? L.stepAirHot(fmt(gaugeEnd), fmt(v.fillP)) : L.stepNoAir]);
+      }
       steps.push(['s-analyze', L.stepCool(durText(th.coolSec), fmt(v.fillP), fmt(v.tgtO2))]);
     } else {
       steps.push(['s-o2', needsO2 ? L.stepO2(fmt(afterO2), fmt(r.o2)) : L.stepNoO2]);
@@ -464,7 +535,7 @@
 
     drawCylinder(r, v);
     updateResultBar({
-      drain: r.drain ? fmt(r.keep) : null, needsO2, needsAir, o2: fmt(gaugeO2), air: fmt(gaugeEnd), warm: !!th,
+      drain: r.drain ? fmt(r.keep) : null, needsO2, needsAir, o2: fmt(gaugeO2), air: topUp && !skipFirst ? `${fmt(v.fillP)} → ${fmt(gaugeEnd)}` : fmt(gaugeEnd), warm: !!th,
     });
     renderThermo(th, v, r, needsO2, needsAir, tK);
   }
@@ -535,8 +606,12 @@
       errFillLower: ['curP', 'fillP'],
       errTemp: ['tAmb'],
       errRate: ['rate'],
+      errAirPause: ['airPause'],
     };
-    (map[err] || []).forEach((id) => $(id).closest('.num-wrap').classList.add('invalid'));
+    (map[err] || []).forEach((id) => {
+      const wrap = $(id).closest('.num-wrap');
+      if (wrap) wrap.classList.add('invalid');
+    });
   }
 
   function drawCylinder(r, v) {
@@ -631,8 +706,11 @@
     return b.t === a.t ? b[key] : a[key] + ((b[key] - a[key]) * (time - a.t)) / (b.t - a.t);
   }
 
-  function evLabel(type) {
-    return t(type === 'o2' ? 'evO2' : type === 'pause' ? 'evPause' : 'evAir');
+  function evLabel(type, twoStepAir) {
+    if (type === 'o2') return t('evO2');
+    if (type === 'pause') return t('evPause');
+    if (type === 'topUp') return t('evTopUp');
+    return t(twoStepAir ? 'evAirFirst' : 'evAir');
   }
 
   function renderThermo(th, v, r, needsO2, needsAir, tK) {
@@ -656,7 +734,8 @@
     $('kpiDrop').textContent = `−${fmt(Math.max(0, ok.fillEnd.p - ok.pc))} bar`;
     $('kpiCool').textContent = durText(th.coolSec);
 
-    const how = [needsO2 && L.naiveHowO2(fmt(r.keep + r.o2)), needsAir && L.naiveHowAir(fmt(v.fillP))]
+    const airHow = th.topUp ? L.naiveHowTopUp(fmt(v.fillP)) : L.naiveHowAir(fmt(v.fillP));
+    const how = [needsO2 && L.naiveHowO2(fmt(r.keep + r.o2)), needsAir && airHow]
       .filter(Boolean)
       .join(L.and);
     // With the real-gas model, the mix after cooling follows from the cold stage pressures
@@ -671,7 +750,7 @@
     const lastT = Math.max(ok.samples[ok.samples.length - 1].t, naive.samples[naive.samples.length - 1].t);
     const xMax = Math.min(clamp(coolEnd, ok.fillEnd.t + 600, ok.fillEnd.t + 7200), lastT);
 
-    thermoData = { ok, naive, xMax, tAmb: v.tAmb, fillP: v.fillP };
+    thermoData = { ok, naive, xMax, tAmb: v.tAmb, fillP: v.fillP, topUp: th.topUp, skipFirstAir: th.skipFirstAir };
     if (hoverT != null) hoverT = clamp(hoverT, 0, xMax);
 
     CHART_IDS.forEach((id) => $(id).setAttribute('aria-label', `${t(id === 'chartP' ? 'chartPressure' : 'chartTemp')} – ${L.chartAria}`));
@@ -687,7 +766,9 @@
       { cls: 's2', samples: d.naive.samples },
       { cls: 's1', samples: d.ok.samples },
     ];
-    const events = d.ok.events.map((e) => ({ t: e.t, label: evLabel(e.type) }));
+    // An air step that added nothing is not shown
+    const shown = d.ok.events.filter((e) => !(d.skipFirstAir && e.type === 'air'));
+    const events = shown.map((e) => ({ t: e.t, label: evLabel(e.type, d.topUp) }));
     const inWin = (key) => [d.ok, d.naive].flatMap((sim) => sim.samples.filter((s) => s.t <= d.xMax).map((s) => s[key]));
 
     // Pressure
@@ -695,7 +776,7 @@
     const pMin = Math.min(...ps);
     const pMax = Math.max(...ps, d.fillP);
     const pPad = (pMax - pMin) * 0.06 || 5;
-    const pMarks = d.ok.events
+    const pMarks = shown
       .filter((e) => e.type !== 'pause')
       .map((e) => ({ t: e.t, v: e.p, label: fmt(e.p) }));
     drawChart('chartP', {
@@ -722,6 +803,7 @@
   function drawChart(id, c) {
     const fig = $(id);
     const svg = fig.querySelector('svg');
+    if (!svg) return;
     const w = Math.max(300, Math.round(fig.clientWidth || 600));
     const h = VIZ.h;
     const iw = w - VIZ.l - VIZ.r;
@@ -931,7 +1013,9 @@
       });
 
     const rows = new Map([[0, L.evStart]]);
-    d.ok.events.forEach((e) => rows.set(e.t, evLabel(e.type)));
+    d.ok.events
+      .filter((e) => !(d.skipFirstAir && e.type === 'air'))
+      .forEach((e) => rows.set(e.t, evLabel(e.type, d.topUp)));
     for (let time = 600; time < d.xMax; time += 600) if (!rows.has(time)) rows.set(time, '');
 
     const body = table.createTBody();
@@ -1013,6 +1097,7 @@
     });
     TOGGLES.forEach((k) => ($(k).checked = !!state[k]));
     $('thermoBody').hidden = !state.thermoOn;
+    $('airPauseField').hidden = !state.airTopUp;
     document.querySelectorAll('.material-picker button').forEach((b) => {
       const on = b.dataset.material === state.material;
       b.classList.toggle('active', on);
