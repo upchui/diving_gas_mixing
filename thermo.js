@@ -17,6 +17,8 @@
   const R = 8.314; // J/(mol·K)
   const CV = 20.8; // J/(mol·K), diatomic (O2, N2, air)
   const CP = 29.1;
+  const CV_HE = 12.47; // J/(mol·K), monatomic helium heats up more when compressed
+  const CP_HE = 20.79;
   const ASPECT = 3.5; // cylinder length / diameter
 
   // Wall heat capacity per litre water volume [J/K/L], inner/outer heat transfer [W/m²K]
@@ -38,8 +40,9 @@
   /**
    * @param {object} o
    *   liters, material, tAmbC, rate (bar/min), waterBath,
-   *   keep (bar, residual at ambient), f1 (residual O2 fraction),
-   *   stages: [{ gas: 'o2'|'air', stopAt: 'gas'|'gauge', value: bar, pauseAfter: bool,
+   *   keep (bar, residual at ambient), f1 / h1 (residual O2 / helium fraction),
+   *   stages, filled in the given order:
+   *            [{ gas: 'he'|'o2'|'air', stopAt: 'gas'|'gauge', value: bar, pauseAfter: bool,
    *              pauseMinutes (fixed pause; default: until within 2 K, max 45 min),
    *              id (event type; default: gas) }],
    *   coolMinutes (max. cooling time, stops earlier within 0.5 K of ambient)
@@ -58,6 +61,7 @@
 
     let pc = o.keep;
     let o2 = o.keep * o.f1; // cold partial pressure of O2
+    let he = o.keep * (o.h1 || 0); // cold partial pressure of helium
     let tg = tAmb;
     let tw = tAmb;
     let t = 0;
@@ -69,17 +73,29 @@
     const sample = () => samples.push({ t, p: gauge(), tC: tg - 273.15 });
     sample();
 
-    // Advance one time step with dpc bar of gas added
-    function step(dpc) {
+    // Molar heat capacity of the gas in the cylinder (helium and diatomic gases)
+    const cvGas = (amount, heAmount) => (heAmount > 0 ? (heAmount * CV_HE + (amount - heAmount) * CV) / amount : CV);
+
+    // Advance one time step with dpc bar of gas added; addedHe is its helium fraction
+    function step(dpc, addedHe = 0) {
       const n0 = pc * molPerBar;
       const n1 = n0 + dpc * molPerBar;
       if (n1 > 0) {
-        // (n0 + dn)·cv·Tg' = n0·cv·Tg + dn·cp·T_in − hi·A·(Tg' − Tw)·dt
-        tg = (n0 * CV * tg + dpc * molPerBar * CP * tAmb + hiA * dt * tw) / (n1 * CV + hiA * dt);
+        if (he > 0 || addedHe > 0) {
+          // Same balance with heat capacities that depend on the helium content
+          const cv0 = n0 > 0 ? cvGas(pc, he) : CV;
+          const cv1 = cvGas(pc + dpc, he + dpc * addedHe);
+          const cpIn = addedHe > 0 ? CP_HE : CP;
+          tg = (n0 * cv0 * tg + dpc * molPerBar * cpIn * tAmb + hiA * dt * tw) / (n1 * cv1 + hiA * dt);
+        } else {
+          // (n0 + dn)·cv·Tg' = n0·cv·Tg + dn·cp·T_in − hi·A·(Tg' − Tw)·dt
+          tg = (n0 * CV * tg + dpc * molPerBar * CP * tAmb + hiA * dt * tw) / (n1 * CV + hiA * dt);
+        }
       }
       const hiGas = n1 > 0 ? hiA : 0;
       tw = (cWall * tw + hiGas * dt * tg + hoA * dt * tAmb) / (cWall + hiGas * dt + hoA * dt);
       pc += dpc;
+      he += dpc * addedHe;
       t += dt;
       if (tg > tMax) tMax = tg;
       if (t % 10 === 0) sample();
@@ -94,7 +110,8 @@
     }
 
     for (const st of o.stages) {
-      const frac = st.gas === 'o2' ? 1 : 0.21;
+      // O2 and helium fraction of the gas that flows in
+      const add = { o2: { o2: 1, he: 0 }, he: { o2: 0, he: 1 } }[st.gas] || { o2: 0.21, he: 0 };
       let guard = 0;
       while (guard++ < 200000) {
         let dpc = dpcStep;
@@ -112,8 +129,8 @@
             last = true;
           }
         }
-        o2 += dpc * frac;
-        step(dpc);
+        o2 += dpc * add.o2;
+        step(dpc, add.he);
         if (last) break;
       }
       const id = st.id || st.gas;
@@ -139,6 +156,7 @@
       tMaxC: tMax - 273.15,
       pc, // pressure once fully cooled
       o2Fraction: pc > 0 ? o2 / pc : 0,
+      heFraction: pc > 0 ? he / pc : 0,
     };
   }
 

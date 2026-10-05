@@ -77,7 +77,11 @@ test('low pressures (<= 20 bar): real gas barely differs from the ideal model', 
 test('switch off: ideal() is identical to the previous version', () => {
   assert.ok(idealFixture.cases.length > 100);
   for (const { input, output } of idealFixture.cases) {
-    assert.deepStrictEqual(Blend.ideal(input), output, JSON.stringify(input));
+    assert.deepStrictEqual(Blend.idealNitrox(input), output, JSON.stringify(input));
+    // ideal() dispatches nitrox to the same calculation and only adds the helium fields
+    const r = Blend.ideal(input);
+    for (const k of Object.keys(output)) assert.equal(r[k], output[k], `${k} ${JSON.stringify(input)}`);
+    assert.equal(r.he, 0);
   }
 });
 
@@ -126,7 +130,7 @@ test('unreachable targets give a bleed-down hint instead of NaN', () => {
           if (fillP <= curP) continue;
           const r = Blend.real({ curO2, tgtO2, curP, fillP, size: 12 }, T20);
           for (const [k, val] of Object.entries(r)) {
-            if (k !== 'drain') assert.ok(Number.isFinite(val), `${k} for ${curO2}/${tgtO2}/${curP}/${fillP}: ${val}`);
+            if (k !== 'drain' && k !== 'unreachable') assert.ok(Number.isFinite(val), `${k} for ${curO2}/${tgtO2}/${curP}/${fillP}: ${val}`);
           }
         }
       }

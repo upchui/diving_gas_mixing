@@ -11,7 +11,7 @@
   <meta name="apple-mobile-web-app-title" content="Gas blending for diving - ALHU">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Nitrox Top-Up Rechner</title>
-  <meta name="description" content="Nitrox Top-Up Rechner: Wie viel O₂ und Luft muss in die Flasche? Partialdruck-Mischen einfach und visuell.">
+  <meta name="description" content="Nitrox und Trimix Top-Up Rechner: Wie viel Helium, O₂ und Luft muss in die Flasche? Partialdruck-Mischen einfach und visuell.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='20' y='12' width='24' height='46' rx='10' fill='%2322d3ee'/%3E%3Crect x='20' y='26' width='24' height='8' fill='%23facc15'/%3E%3Crect x='27' y='4' width='10' height='9' rx='2' fill='%2394a3b8'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -58,6 +58,11 @@
     <section class="inputs" aria-labelledby="inputs-heading">
       <h2 id="inputs-heading" class="sr-only" data-i18n="inputs">Eingaben</h2>
 
+      <div class="mode-switch" role="group" aria-label="Nitrox / Trimix">
+        <button type="button" data-mode="nitrox" class="active">Nitrox</button>
+        <button type="button" data-mode="trimix">Trimix</button>
+      </div>
+
       <div class="card">
         <div class="card-head">
           <span class="dot dot-current"></span>
@@ -70,12 +75,28 @@
             <span class="unit">% O₂</span>
           </div>
           <input type="range" class="slider" data-for="curO2" min="21" max="100" step="0.5">
-          <div class="chips" data-for="curO2">
+          <div class="chips nitrox-only" data-for="curO2">
             <button type="button" data-value="21" data-i18n="air">Luft</button>
             <button type="button" data-value="28">EAN28</button>
             <button type="button" data-value="32">EAN32</button>
             <button type="button" data-value="36">EAN36</button>
           </div>
+          <div class="chips mix-chips trimix-only" data-mix="cur">
+            <button type="button" data-o2="21" data-he="0" data-i18n="air">Luft</button>
+            <button type="button" data-o2="32" data-he="0">EAN32</button>
+            <button type="button" data-o2="21" data-he="35">21/35</button>
+            <button type="button" data-o2="18" data-he="45">18/45</button>
+            <button type="button" data-o2="15" data-he="55">15/55</button>
+          </div>
+        </div>
+        <div class="field trimix-only">
+          <label for="curHe" data-i18n="helium">Helium</label>
+          <div class="num-wrap">
+            <input type="number" id="curHe" min="0" max="95" step="1" inputmode="decimal">
+            <span class="unit">% He</span>
+          </div>
+          <input type="range" class="slider" data-for="curHe" min="0" max="95" step="1">
+          <p class="mix-n2" id="curN2"></p>
         </div>
       </div>
 
@@ -91,14 +112,87 @@
             <span class="unit">% O₂</span>
           </div>
           <input type="range" class="slider" data-for="tgtO2" min="21" max="100" step="0.5">
-          <div class="chips" data-for="tgtO2">
+          <div class="chips nitrox-only" data-for="tgtO2">
             <button type="button" data-value="28">EAN28</button>
             <button type="button" data-value="32">EAN32</button>
             <button type="button" data-value="36">EAN36</button>
             <button type="button" data-value="40">EAN40</button>
           </div>
+          <div class="chips mix-chips trimix-only" data-mix="tgt">
+            <button type="button" data-o2="21" data-he="35">21/35</button>
+            <button type="button" data-o2="18" data-he="45">18/45</button>
+            <button type="button" data-o2="15" data-he="55">15/55</button>
+            <button type="button" data-o2="12" data-he="65">12/65</button>
+            <button type="button" data-o2="10" data-he="70">10/70</button>
+            <button type="button" data-o2="25" data-he="25">Helitrox 25/25</button>
+          </div>
+        </div>
+        <div class="field trimix-only">
+          <label for="tgtHe" data-i18n="helium">Helium</label>
+          <div class="num-wrap">
+            <input type="number" id="tgtHe" min="0" max="95" step="1" inputmode="decimal">
+            <span class="unit">% He</span>
+          </div>
+          <input type="range" class="slider" data-for="tgtHe" min="0" max="95" step="1">
+          <p class="mix-n2" id="tgtN2"></p>
         </div>
       </div>
+
+      <details class="card bestmix-card trimix-only" id="bestMixCard">
+        <summary class="card-head">
+          <span class="dot dot-best"></span>
+          <h3 data-i18n="bestMixTitle">Bestes Gemisch berechnen</h3>
+        </summary>
+        <div class="field">
+          <label for="bmDepth" data-i18n="bmDepth">Zieltiefe</label>
+          <div class="num-wrap">
+            <input type="number" id="bmDepth" min="10" max="150" step="1" inputmode="decimal">
+            <span class="unit">m</span>
+          </div>
+          <div class="chips" data-for="bmDepth">
+            <button type="button" data-value="40">40 m</button>
+            <button type="button" data-value="50">50 m</button>
+            <button type="button" data-value="60">60 m</button>
+            <button type="button" data-value="80">80 m</button>
+            <button type="button" data-value="100">100 m</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="bmPpO2" data-i18n="bmPpO2">Max. ppO₂</label>
+          <div class="num-wrap">
+            <input type="number" id="bmPpO2" min="1" max="1.6" step="0.1" inputmode="decimal">
+            <span class="unit">bar</span>
+          </div>
+          <div class="chips" data-for="bmPpO2">
+            <button type="button" data-value="1.2">1,2</button>
+            <button type="button" data-value="1.3">1,3</button>
+            <button type="button" data-value="1.4">1,4</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="bmEnd" data-i18n="bmEnd">Gewünschte END</label>
+          <div class="num-wrap">
+            <input type="number" id="bmEnd" min="0" max="60" step="1" inputmode="decimal">
+            <span class="unit">m</span>
+          </div>
+          <div class="chips" data-for="bmEnd">
+            <button type="button" data-value="24">24 m</button>
+            <button type="button" data-value="30">30 m</button>
+            <button type="button" data-value="40">40 m</button>
+          </div>
+        </div>
+        <div class="field toggles">
+          <label class="switch switch-row">
+            <input type="checkbox" id="o2Narcotic">
+            <span class="switch-track" aria-hidden="true"></span>
+            <span data-i18n="o2Narcotic">O₂ als narkotisch rechnen</span>
+          </label>
+        </div>
+        <div class="bestmix-result">
+          <div id="bestMixText" class="bestmix-text"></div>
+          <button type="button" id="bestMixApply" class="bestmix-apply" data-i18n="bestMixApply">Als Ziel übernehmen</button>
+        </div>
+      </details>
 
       <div class="card">
         <div class="card-head">
@@ -147,6 +241,13 @@
             <button type="button" data-value="350">350</button>
           </div>
         </div>
+        <div class="field trimix-only">
+          <span class="field-label" id="fillOrderLabel" data-i18n="fillOrder">Füllreihenfolge</span>
+          <div class="seg-switch" role="group" id="fillOrderSwitch" aria-labelledby="fillOrderLabel">
+            <button type="button" data-order="he" data-i18n="heFirst">Helium zuerst</button>
+            <button type="button" data-order="o2" data-i18n="o2First">Sauerstoff zuerst</button>
+          </div>
+        </div>
       </div>
 
       <div class="card realgas-card">
@@ -158,7 +259,8 @@
             <span class="switch-track" aria-hidden="true"></span>
           </label>
         </div>
-        <p class="card-hint" data-i18n="realGasHint">Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.</p>
+        <p class="card-hint nitrox-only" data-i18n="realGasHint">Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.</p>
+        <p class="card-hint trimix-only" data-i18n="realGasHintTx">Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger und Helium deutlich weniger.</p>
       </div>
 
       <div class="card thermo-card">
@@ -239,6 +341,11 @@
               <span class="switch-track" aria-hidden="true"></span>
               <span data-i18n="waterBath">Wasserbad</span>
             </label>
+            <label class="switch switch-row trimix-only">
+              <input type="checkbox" id="heCoolPause">
+              <span class="switch-track" aria-hidden="true"></span>
+              <span data-i18n="heCoolPause">Nach He abkühlen lassen</span>
+            </label>
             <label class="switch switch-row">
               <input type="checkbox" id="coolPause">
               <span class="switch-track" aria-hidden="true"></span>
@@ -275,6 +382,25 @@
         <div class="hero">
           <div id="error" class="alert alert-error" hidden></div>
           <div id="drainAlert" class="alert alert-warn" hidden></div>
+          <div id="hypoxicAlert" class="alert alert-warn" hidden></div>
+
+          <div id="heroHe" class="hero-he trimix-only">
+            <div class="hero-air-text">
+              <span class="hero-air-head">
+                <span id="heroHeLabel" class="hero-label" data-i18n="fillHeTo">Helium füllen bis</span>
+                <span id="warmBadgeHe" class="badge-warm" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
+                  <span data-i18n="warmRead">warm ablesen</span>
+                </span>
+              </span>
+              <span id="heCold" class="hero-cold" hidden>
+                <span id="heHeat" class="heat-delta"></span>
+                <span id="heColdText"></span>
+              </span>
+              <span id="heIdeal" class="hero-ideal" hidden></span>
+            </div>
+            <span id="heroHeValue" class="hero-air-value"><span id="heTarget">–</span><small>bar</small></span>
+          </div>
 
           <div id="heroO2" class="hero-o2">
             <div class="hero-head">
@@ -303,6 +429,7 @@
             <div id="heroNone" class="hero-sub" hidden data-i18n="noO2Needed">Kein Sauerstoff nötig – nur Luft auffüllen.</div>
             <div class="gauge-bar" aria-hidden="true">
               <span id="gaugeResidual" class="seg seg-residual"></span>
+              <span id="gaugeHe" class="seg seg-he"></span>
               <span id="gaugeO2" class="seg seg-o2"></span>
               <span id="gaugeAir" class="seg seg-air"></span>
             </div>
@@ -345,6 +472,9 @@
               <linearGradient id="gO2" x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#15803d"/>
               </linearGradient>
+              <linearGradient id="gHe" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#c4b5fd"/><stop offset="1" stop-color="#7c3aed"/>
+              </linearGradient>
               <linearGradient id="gAir" x1="0" x2="0" y1="0" y2="1">
                 <stop offset="0" stop-color="#e2e8f0"/><stop offset="1" stop-color="#94a3b8"/>
               </linearGradient>
@@ -358,12 +488,14 @@
             <rect x="40" y="70" width="110" height="330" rx="40" fill="#0b2338" stroke="#1e3a5f" stroke-width="2"/>
             <g clip-path="url(#cylClip)">
               <rect id="layerResidual" class="layer" x="40" y="400" width="110" height="0" fill="url(#gResidual)"/>
+              <rect id="layerHe" class="layer" x="40" y="400" width="110" height="0" fill="url(#gHe)"/>
               <rect id="layerO2" class="layer" x="40" y="400" width="110" height="0" fill="url(#gO2)"/>
               <rect id="layerAir" class="layer" x="40" y="400" width="110" height="0" fill="url(#gAir)"/>
               <line id="drainLine" x1="40" x2="150" y1="0" y2="0" stroke="#f87171" stroke-width="2" stroke-dasharray="6 5" opacity="0"/>
-              <!-- Nitrox-Band -->
+              <!-- Gemisch-Band -->
               <rect x="40" y="110" width="110" height="22" fill="#facc15" opacity="0.92"/>
-              <text x="95" y="126" text-anchor="middle" class="band-text">NITROX</text>
+              <text x="95" y="126" text-anchor="middle" class="band-text nitrox-only">NITROX</text>
+              <text x="95" y="126" text-anchor="middle" class="band-text trimix-only">TRIMIX</text>
               <rect x="40" y="70" width="110" height="330" fill="url(#gloss)"/>
             </g>
             <rect x="40" y="70" width="110" height="330" rx="40" fill="none" stroke="#38bdf8" stroke-opacity="0.35" stroke-width="2"/>
@@ -371,6 +503,7 @@
           </svg>
           <ul class="legend">
             <li><span class="sw sw-residual"></span><span data-i18n="legendResidual">Restgas</span></li>
+            <li class="trimix-only"><span class="sw sw-he"></span><span data-i18n="legendHe">Helium</span></li>
             <li><span class="sw sw-o2"></span><span data-i18n="legendO2">Sauerstoff</span></li>
             <li><span class="sw sw-air"></span><span data-i18n="legendAir">Luft</span></li>
           </ul>
@@ -379,6 +512,11 @@
         <div class="numbers">
 
           <div id="resultTiles" class="tiles">
+            <div class="tile tile-he trimix-only">
+              <div id="heTileLabel" class="tile-label">He zugeben</div>
+              <div class="tile-value"><span id="heBar">–</span><small>bar</small></div>
+              <div class="tile-sub"><span id="heL">–</span> <span data-i18n="litersHe">Liter He</span></div>
+            </div>
             <div class="tile tile-o2">
               <div id="o2TileLabel" class="tile-label">O₂ zugeben</div>
               <div class="tile-value"><span id="o2Bar">–</span><small>bar</small></div>
@@ -412,6 +550,18 @@
             <div class="fact">
               <span class="fact-label" id="factMod16Label">MOD ppO₂ 1,6</span>
               <span class="fact-value" id="factMod16">–</span>
+            </div>
+            <div class="fact trimix-only">
+              <span class="fact-label" id="factEndLabel">END bei MOD 1,4</span>
+              <span class="fact-value" id="factEnd">–</span>
+            </div>
+            <div class="fact trimix-only" id="factDensityBox">
+              <span class="fact-label" id="factDensityLabel">Gasdichte bei MOD 1,4</span>
+              <span class="fact-value" id="factDensity">–</span>
+            </div>
+            <div class="fact trimix-only" id="factMinDepthBox" hidden>
+              <span class="fact-label" data-i18n="minDepth">Mindesttiefe (ppO₂ 0,18)</span>
+              <span class="fact-value" id="factMinDepth">–</span>
             </div>
           </div>
         </div>
@@ -470,7 +620,7 @@
   </main>
 
   <footer class="footer">
-    <p data-i18n="disclaimer">Rechenhilfe nach der Partialdruck-Methode (ideales Gas, Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren.</p>
+    <p data-i18n="disclaimer">Rechenhilfe nach der Partialdruck-Methode (Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren, bei Trimix O₂ und He.</p>
   </footer>
 
   <button type="button" id="resultBar" class="result-bar away">

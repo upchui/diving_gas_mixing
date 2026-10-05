@@ -70,3 +70,48 @@ test('a pause without pauseMinutes behaves as before (until within 2 K, max 45 m
   assert.ok(close(s.tMaxC, 37.515725, 1e-5));
   assert.equal(s.settled.t, 9893);
 });
+
+test('helium heats up more than air when filled the same way', () => {
+  const fill = (gas) => Thermo.simulateFill({
+    liters: 12, material: 'carbon', tAmbC: 20, rate: 10, keep: 0, f1: 0.21,
+    stages: [{ gas, stopAt: 'gas', value: 99 }],
+  });
+  const he = fill('he');
+  const air = fill('air');
+  assert.ok(he.tMaxC > air.tMaxC + 2, `He ${he.tMaxC} °C, air ${air.tMaxC} °C`);
+  assert.ok(he.events[0].p > air.events[0].p, 'the warm gauge reads higher after the helium fill');
+  assert.ok(close(he.heFraction, 1, 1e-9) && close(air.heFraction, 0, 1e-9));
+});
+
+test('trimix fill: helium, O2 and top-up gas end at the target amounts and mix', () => {
+  // Empty cylinder to Tx 18/45 at 220 bar, ideal amounts: He to 99, O2 to 116.96, air to 220
+  const s = Thermo.simulateFill({
+    liters: 12, material: 'steel', tAmbC: 20, rate: 10, keep: 0, f1: 0.21, h1: 0,
+    stages: [
+      { gas: 'he', stopAt: 'gas', value: 99 },
+      { gas: 'o2', stopAt: 'gas', value: 116.962 },
+      { gas: 'air', stopAt: 'gas', value: 220 },
+    ],
+  });
+  assert.deepStrictEqual(s.events.map((e) => e.type), ['he', 'o2', 'air']);
+  assert.ok(close(s.pc, 220, 1e-6));
+  assert.ok(close(s.o2Fraction, 0.18, 1e-4) && close(s.heFraction, 0.45, 1e-4), `${s.o2Fraction} / ${s.heFraction}`);
+});
+
+test('oxygen first: the stages run in the given order and end at the same mix', () => {
+  // Same amounts as above, O2 first: O2 to 17.96, helium to 116.96, air to 220
+  const run = (stages) => Thermo.simulateFill({ liters: 12, material: 'steel', tAmbC: 20, rate: 10, keep: 0, f1: 0.21, h1: 0, stages });
+  const heFirst = run([
+    { gas: 'he', stopAt: 'gas', value: 99 },
+    { gas: 'o2', stopAt: 'gas', value: 116.962 },
+    { gas: 'air', stopAt: 'gas', value: 220 },
+  ]);
+  const o2First = run([
+    { gas: 'o2', stopAt: 'gas', value: 17.962 },
+    { gas: 'he', stopAt: 'gas', value: 116.962 },
+    { gas: 'air', stopAt: 'gas', value: 220 },
+  ]);
+  assert.deepStrictEqual(o2First.events.map((e) => e.type), ['o2', 'he', 'air']);
+  assert.ok(close(o2First.pc, heFirst.pc, 1e-9));
+  assert.ok(close(o2First.o2Fraction, heFirst.o2Fraction, 1e-9) && close(o2First.heFraction, heFirst.heFraction, 1e-9));
+});

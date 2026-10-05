@@ -1,10 +1,12 @@
 /*
- * Blending maths for partial pressure nitrox top-ups (pure O2 first, then air).
+ * Blending maths for partial pressure top-ups: helium and pure O2 (in either order),
+ * then air. Nitrox is the special case without helium.
  *
  * ideal(): classic partial pressure method, gas amount proportional to gauge pressure.
- * real():  the same balance in moles, with the compressibility factor Z of the
- *          O2/N2 mixture from the Peng–Robinson equation of state (kij = 0) plus a
- *          constant volume shift per component (Péneloux) fitted to NIST data.
+ * real():  the same balance in moles. The compressibility factor of the O2/N2 part
+ *          comes from the Peng–Robinson equation of state (kij = 0) plus a constant
+ *          volume shift per component (Péneloux) fitted to NIST data; helium uses a
+ *          virial fit to NIST data and is combined with the O2/N2 part by Amagat's law.
  *
  * Pressures passed in and returned are gauge pressures in bar; Z() itself takes
  * the absolute pressure in Pa. Air is 21 % O2 / 79 % N2 (argon ignored).
@@ -26,16 +28,21 @@
     N2: { Tc: 126.2, Pc: 33.98e5, omega: 0.037, shift: -3.88e-6 },
   };
 
+  // Helium: Peng–Robinson describes it poorly (1–3 % off), so it uses a virial fit
+  // to NIST WebBook data, 0–40 °C and 10–350 bar, within 0.5 ‰:
+  // Z = 1 + b1·P + b2·P² with P absolute in bar and b1, b2 linear in T
+  const HELIUM = { T0: 293.15, b1: 4.87406e-4, b1T: -1.8314e-6, b2: -4.92813e-8, b2T: 2.2896e-10 };
+
   // ---------- Ideal partial pressure method ----------
 
   // Round tiny negatives (floating point noise) to zero
   const clean = (n) => (Math.abs(n) < 1e-9 ? 0 : n);
 
   /**
-   * Partial pressure top-up with pure O2 then air.
+   * Partial pressure top-up with pure O2 then air (nitrox).
    * Returns pressures in bar; `keep` is the pressure to bleed down to before filling.
    */
-  function ideal({ curO2, tgtO2, curP, fillP }) {
+  function idealNitrox({ curO2, tgtO2, curP, fillP }) {
     const f1 = curO2 / 100;
     const f2 = tgtO2 / 100;
     let keep = curP;
@@ -119,19 +126,35 @@
     return zPR - (shift * P) / (R * T);
   }
 
-  const toPa = (gauge) => (gauge + ATM) * 1e5;
-
-  /** Moles of gas with O2 fraction x at a gauge pressure (bar), T in K, V in m³. */
-  function moles(x, gauge, T, V) {
-    const P = toPa(gauge);
-    return (P * V) / (Z(x, P, T) * R * T);
+  function zHelium(Pbar, T) {
+    const dT = T - HELIUM.T0;
+    return 1 + (HELIUM.b1 + HELIUM.b1T * dT) * Pbar + (HELIUM.b2 + HELIUM.b2T * dT) * Pbar * Pbar;
   }
 
-  /** Gauge pressure (bar) of n moles with O2 fraction x; fixed-point iteration from the ideal value. */
-  function pressure(n, x, T, V) {
+  /**
+   * Compressibility factor of an O2/He/N2 mixture: helium and the O2/N2 part are
+   * combined by Amagat's law (additive volumes). Without helium this is exactly Z().
+   */
+  function Zmix(xO2, xHe, P, T) {
+    if (!(xHe > 0)) return Z(xO2, P, T);
+    const rest = 1 - xHe;
+    const zRest = rest > 1e-12 ? Z(Math.min(1, xO2 / rest), P, T) : 1;
+    return rest * zRest + xHe * zHelium(P / 1e5, T);
+  }
+
+  const toPa = (gauge) => (gauge + ATM) * 1e5;
+
+  /** Moles of gas (O2 fraction x, helium fraction xHe) at a gauge pressure (bar), T in K, V in m³. */
+  function moles(x, gauge, T, V, xHe = 0) {
+    const P = toPa(gauge);
+    return (P * V) / (Zmix(x, xHe, P, T) * R * T);
+  }
+
+  /** Gauge pressure (bar) of n moles; fixed-point iteration from the ideal value. */
+  function pressure(n, x, T, V, xHe = 0) {
     let P = (n * R * T) / V;
     for (let i = 0; i < 100; i++) {
-      const next = (Z(x, P, T) * n * R * T) / V;
+      const next = (Zmix(x, xHe, P, T) * n * R * T) / V;
       const done = Math.abs(next - P) < 1e3; // 0.01 bar
       P = next;
       if (done) break;
@@ -143,11 +166,11 @@
   const freeLitres = (n) => ((n * R * FREE_GAS_T) / FREE_GAS_P) * 1000;
 
   /**
-   * Real-gas top-up in a cooled cylinder at temperature T (K).
-   * Same result shape as ideal(): pressures in bar gauge (o2 = rise during the O2
-   * step, air = rise during the air step), plus free gas volumes in litres.
+   * Real-gas nitrox top-up in a cooled cylinder at temperature T (K).
+   * Same result shape as idealNitrox(): pressures in bar gauge (o2 = rise during the
+   * O2 step, air = rise during the air step), plus free gas volumes in litres.
    */
-  function real({ curO2, tgtO2, curP, fillP, size }, T) {
+  function realNitrox({ curO2, tgtO2, curP, fillP, size }, T) {
     const V = size / 1000;
     const x0 = curO2 / 100;
     const xf = tgtO2 / 100;
@@ -222,7 +245,247 @@
     return (s.o / s.n) * 100;
   }
 
-  const api = { AIR_O2, ATM, R, GASES, Z, moles, pressure, ideal, real, mixAfter };
+  // ---------- Trimix: helium and O2 in either order, then air ----------
+
+  const fractions = (o2, he = 0) => {
+    const f = { o2: o2 / 100, he: (he || 0) / 100 };
+    f.n2 = 1 - f.o2 - f.he;
+    return f;
+  };
+  const isPlainNitrox = (v) => !(v.curHe > 0) && !(v.tgtHe > 0);
+  const fillOrder = (order) => (order === 'o2' ? ['o2', 'he'] : ['he', 'o2']);
+
+  /**
+   * Chooses the residual amount n0 (bar for the ideal method, mol for the real one)
+   * and the amounts of helium, O2 and air. Every amount is linear in n0, so the
+   * residual amounts that keep all three >= 0 form an interval; the cylinder is
+   * bled down to its upper end when the current residual is too much. The amounts
+   * do not depend on the fill order.
+   */
+  function solve(nf, n0cur, n0min, f0, ff) {
+    const airN2 = 1 - AIR_O2;
+    const amountsAt = (n0) => {
+      const air = (nf * ff.n2 - n0 * f0.n2) / airN2;
+      const he = nf * ff.he - n0 * f0.he;
+      return { he, o2: nf * ff.o2 - n0 * f0.o2 - AIR_O2 * air, air };
+    };
+    // a - b·n0 >= 0 for each gas
+    const limits = [
+      { gas: 'air', a: (nf * ff.n2) / airN2, b: f0.n2 / airN2 },
+      { gas: 'he', a: nf * ff.he, b: f0.he },
+      { gas: 'o2', a: nf * ff.o2 - (AIR_O2 * nf * ff.n2) / airN2, b: f0.o2 - (AIR_O2 * f0.n2) / airN2 },
+    ];
+    let lo = 0;
+    let hi = Infinity;
+    let binding = null;
+    for (const c of limits) {
+      if (Math.abs(c.b) < 1e-12) {
+        if (c.a < -1e-9) return { unreachable: true };
+      } else if (c.b > 0) {
+        if (c.a / c.b < hi) {
+          hi = c.a / c.b;
+          binding = c.gas;
+        }
+      } else {
+        lo = Math.max(lo, c.a / c.b);
+      }
+    }
+    const n0 = Math.min(hi, n0cur);
+    // Empty interval, or more residual needed than is in the cylinder
+    if (hi < lo - 1e-9 || n0 < lo - 1e-9) return { unreachable: true };
+    const drain = n0 < n0cur - 1e-9 ? { o2: 'lean', air: 'rich', he: 'helium' }[binding] : null;
+
+    if (n0 >= n0min - 1e-9) {
+      const a = amountsAt(n0);
+      return { n0, he: Math.max(0, a.he), o2: Math.max(0, a.o2), air: Math.max(0, a.air), drain };
+    }
+    // A bled cylinder still holds 1 atm: the target can only be approximated. The
+    // limiting gas is left out and the others make up the total.
+    const a = amountsAt(n0min);
+    const rest = (x) => Math.max(0, x);
+    if (binding === 'o2') {
+      const he = rest(a.he);
+      return { n0: n0min, he, o2: 0, air: rest(nf - n0min - he), drain };
+    }
+    if (binding === 'air') {
+      const he = rest(a.he);
+      return { n0: n0min, he, o2: rest(nf - n0min - he), air: 0, drain };
+    }
+    const air = rest(a.air);
+    return { n0: n0min, he: 0, o2: rest(nf - n0min - air), air, drain };
+  }
+
+  function unreachableResult(curP, f0, order) {
+    return {
+      keep: curP, he: 0, o2: 0, air: 0, drain: null, unreachable: true, order,
+      finalO2: f0.o2 * 100, finalHe: f0.he * 100,
+    };
+  }
+
+  /**
+   * Classic partial pressure method for trimix (gauge pressures). `order` is the fill
+   * order: 'he' (helium, then O2) or 'o2' (O2, then helium); air always comes last.
+   * he / o2 / air are the pressure rises of the steps; ideally they don't depend on the order.
+   */
+  function idealMix({ curO2, curHe = 0, tgtO2, tgtHe = 0, curP, fillP, order = 'he' }) {
+    const f0 = fractions(curO2, curHe);
+    const ff = fractions(tgtO2, tgtHe);
+    const s = solve(fillP, curP, 0, f0, ff);
+    if (s.unreachable) return unreachableResult(curP, f0, order);
+    const total = s.n0 + s.he + s.o2 + s.air;
+    return {
+      keep: s.n0,
+      he: s.he,
+      o2: s.o2,
+      air: s.air,
+      drain: s.drain,
+      unreachable: false,
+      order,
+      finalO2: ((s.n0 * f0.o2 + s.o2 + AIR_O2 * s.air) / total) * 100,
+      finalHe: ((s.n0 * f0.he + s.he) / total) * 100,
+    };
+  }
+
+  /**
+   * Real-gas version of idealMix() in a cooled cylinder at temperature T (K). The gas
+   * amounts are the same in both orders, the gauge rises of the steps are not.
+   */
+  function realMix({ curO2, curHe = 0, tgtO2, tgtHe = 0, curP, fillP, size, order = 'he' }, T) {
+    const V = size / 1000;
+    const f0 = fractions(curO2, curHe);
+    const ff = fractions(tgtO2, tgtHe);
+    const nf = moles(ff.o2, fillP, T, V, ff.he);
+    const n0cur = moles(f0.o2, curP, T, V, f0.he);
+    const n0min = moles(f0.o2, 0, T, V, f0.he);
+    const s = solve(nf, n0cur, n0min, f0, ff);
+    if (s.unreachable) return unreachableResult(curP, f0, order);
+
+    let keep = curP;
+    if (s.n0 < n0cur - 1e-12) keep = s.n0 <= n0min + 1e-12 ? 0 : Math.max(0, pressure(s.n0, f0.o2, T, V, f0.he));
+    // Gauge pressure after each step in fill order; without air the last step ends at the fill pressure
+    const gases = fillOrder(order);
+    const amount = { o2: f0.o2 * s.n0, he: f0.he * s.n0 };
+    const rise = { he: 0, o2: 0 };
+    let n = s.n0;
+    let p = keep;
+    gases.forEach((gas, i) => {
+      if (!(s[gas] > 0)) return;
+      n += s[gas];
+      amount[gas] += s[gas];
+      const last = !(s.air > 0) && (i === 1 || !(s[gases[1]] > 0));
+      const next = last ? fillP : pressure(n, amount.o2 / n, T, V, amount.he / n);
+      rise[gas] = Math.max(0, next - p);
+      p = next;
+    });
+    const total = n + s.air;
+    return {
+      keep,
+      he: rise.he,
+      o2: rise.o2,
+      air: Math.max(0, fillP - p),
+      drain: s.drain,
+      unreachable: false,
+      order,
+      finalO2: ((f0.o2 * s.n0 + s.o2 + AIR_O2 * s.air) / total) * 100,
+      finalHe: ((f0.he * s.n0 + s.he) / total) * 100,
+      litersHe: freeLitres(s.he),
+      litersO2: freeLitres(s.o2),
+      litersAir: freeLitres(s.air),
+      litersTotal: freeLitres(total),
+    };
+  }
+
+  /**
+   * Gas amounts and gauge targets. Plain nitrox (no helium) keeps the original
+   * calculation; trimix goes through the general one.
+   */
+  const withoutHelium = (r) => ({ ...r, he: 0, finalHe: 0, unreachable: false, ...(r.litersO2 != null && { litersHe: 0 }) });
+  const ideal = (v) => (isPlainNitrox(v) ? withoutHelium(idealNitrox(v)) : idealMix(v));
+  const real = (v, T) => (isPlainNitrox(v) ? withoutHelium(realNitrox(v, T)) : realMix(v, T));
+
+  /**
+   * The fill steps of a result in order, with the gauge pressure (cold) before and after
+   * each: [{ gas: 'he'|'o2'|'air', from, to }]. Nitrox results count as helium first.
+   */
+  function fillSteps(r) {
+    let p = r.keep;
+    return [...fillOrder(r.order), 'air'].map((gas) => {
+      const step = { gas, from: p, to: p + r[gas] };
+      p = step.to;
+      return step;
+    });
+  }
+
+  /**
+   * O2 and helium percentage after the fill steps [{ gas: 'he'|'o2'|'air', to }] in their
+   * order (gauge bar, cooled), starting from `keep` bar of gas with the fractions x0.
+   */
+  function mixAfterFill(x0, keep, steps, T, V) {
+    const ADD = { he: { o2: 0, he: 1 }, o2: { o2: 1, he: 0 }, air: { o2: AIR_O2, he: 0 } };
+    const fill = (s, add, gauge) => {
+      const P = toPa(gauge);
+      let n = (P * V) / (R * T);
+      for (let i = 0; i < 100; i++) {
+        const dn = n - s.n;
+        const next = (P * V) / (Zmix((s.o + add.o2 * dn) / n, (s.h + add.he * dn) / n, P, T) * R * T);
+        const done = Math.abs(next - n) < 1e-9 * next;
+        n = next;
+        if (done) break;
+      }
+      const dn = n - s.n;
+      return { n, o: s.o + add.o2 * dn, h: s.h + add.he * dn };
+    };
+    const n0 = moles(x0.o2, keep, T, V, x0.he);
+    let s = { n: n0, o: x0.o2 * n0, h: x0.he * n0 };
+    let p = keep;
+    for (const step of steps) {
+      if (step.to > p) {
+        s = fill(s, ADD[step.gas], step.to);
+        p = step.to;
+      }
+    }
+    return { o2: (s.o / s.n) * 100, he: (s.h / s.n) * 100 };
+  }
+
+  // ---------- Dive values (sea water: 10 m per bar, 1 bar at the surface) ----------
+
+  const ambientBar = (depth) => depth / 10 + 1;
+  const MOLAR_MASS = { o2: 31.998, he: 4.0026, n2: 28.014 }; // g/mol
+
+  /** Maximum operating depth in m for a ppO2 limit. */
+  const mod = (fO2, ppO2) => (ppO2 / fO2 - 1) * 10;
+
+  /** Equivalent narcotic depth in m; with o2Narcotic, oxygen counts as narcotic like nitrogen. */
+  function end(depth, fO2, fHe, o2Narcotic) {
+    const narcotic = o2Narcotic ? 1 - fHe : (1 - fO2 - fHe) / (1 - AIR_O2);
+    return ambientBar(depth) * narcotic * 10 - 10;
+  }
+
+  /** Minimum operating depth in m for hypoxic mixes (0 when breathable at the surface). */
+  const minDepth = (fO2, ppO2Min = 0.18) => Math.max(0, (ppO2Min / fO2 - 1) * 10);
+
+  /** Gas density in g/l at a depth (ideal gas, default 20 °C). */
+  function density(depth, fO2, fHe, T = 293.15) {
+    const M = fO2 * MOLAR_MASS.o2 + fHe * MOLAR_MASS.he + (1 - fO2 - fHe) * MOLAR_MASS.n2;
+    return (ambientBar(depth) * 1e5 * M) / (R * T) / 1000;
+  }
+
+  /**
+   * Trimix for a depth, maximum ppO2 and target END, in whole percent: O2 rounded
+   * down, helium rounded up (both on the safe side).
+   */
+  function bestMix(depth, ppO2, endTarget, o2Narcotic) {
+    const o2 = Math.min(100, Math.floor((ppO2 / ambientBar(depth)) * 100 + 1e-9));
+    const narcotic = Math.min(1, ambientBar(endTarget) / ambientBar(depth));
+    const heFraction = o2Narcotic ? 1 - narcotic : 1 - o2 / 100 - (1 - AIR_O2) * narcotic;
+    const he = Math.max(0, Math.min(100 - o2, Math.ceil(heFraction * 100 - 1e-9)));
+    return { o2, he };
+  }
+
+  const api = {
+    AIR_O2, ATM, R, GASES, HELIUM, Z, Zmix, moles, pressure, ideal, real, idealNitrox, realNitrox,
+    idealMix, realMix, fillSteps, mixAfter, mixAfterFill, mod, end, minDepth, density, bestMix,
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Blend = api;
 })(typeof window !== 'undefined' ? window : this);

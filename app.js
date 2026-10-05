@@ -10,11 +10,17 @@
   const DEFAULTS = {
     curO2: 21, tgtO2: 32, size: 12, curP: 50, fillP: 200, lang: deviceLang(), langChosen: false,
     realGas: true, thermoOn: true, material: 'steel', tAmb: 20, rate: 10, waterBath: false, coolPause: false, airTopUp: false, airPause: 30,
+    // Trimix fill order: 'he' (helium, then O2) or 'o2' (O2, then helium); air always last
+    mode: 'nitrox', curHe: 0, tgtHe: 0, fillOrder: 'he', heCoolPause: false,
+    // The mixes of the mode that is not shown (nitrox and trimix keep their own)
+    otherMix: { curO2: 21, curHe: 0, tgtO2: 21, tgtHe: 35 },
+    bmDepth: 60, bmPpO2: 1.4, bmEnd: 30, o2Narcotic: true,
   };
 
   const I18N = {
     de: {
       title: 'Nitrox Top-Up Rechner',
+      titleTx: 'Trimix Top-Up Rechner',
       subtitle: 'Partialdruck-Mischen: Was muss in die Flasche?',
       inputs: 'Eingaben',
       currentMix: 'Aktuelles Gemisch',
@@ -37,7 +43,7 @@
       steps: 'Schritt für Schritt',
       finalMix: 'Endgemisch',
       totalGas: 'Gas gesamt',
-      disclaimer: 'Rechenhilfe nach der Partialdruck-Methode (ideales Gas, Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren.',
+      disclaimer: 'Rechenhilfe nach der Partialdruck-Methode (Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren, bei Trimix O₂ und He.',
       cylinderAria: 'Flaschen-Visualisierung',
       fillO2To: 'O₂ füllen bis',
       thenAirTo: 'Dann mit Luft auffüllen bis',
@@ -46,10 +52,49 @@
       barPureO2: 'bar reiner O₂',
       noO2Needed: 'Kein Sauerstoff nötig – nur Luft auffüllen.',
       moreSettings: 'Weitere Einstellungen',
+      helium: 'Helium',
+      n2Rest: (p) => `Rest Stickstoff: ${p} % N₂`,
+      fillOrder: 'Füllreihenfolge',
+      heFirst: 'Helium zuerst',
+      o2First: 'Sauerstoff zuerst',
+      legendHe: 'Helium',
+      fillHeTo: 'Helium füllen bis',
+      noHeNeeded: 'Kein Helium nötig',
+      addHe: 'He zugeben',
+      addHeCooled: 'He-Menge (abgekühlt)',
+      litersHe: 'Liter He',
+      heCoolPause: 'Nach He abkühlen lassen',
+      pauseHeShort: 'Pause nach He',
+      evHe: 'He fertig',
+      stepHe: (to, add) => `Helium zugeben, bis das Manometer <strong>${to} bar</strong> zeigt <span class="muted">(+${add} bar)</span>`,
+      stepHeHot: (to, cold) => `Helium zugeben, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Das Gas ist dabei warm. Nach dem Abkühlen fällt der Druck auf ${cold} bar.</span>`,
+      stepNoHe: 'Kein Helium nötig',
+      naiveHowHe: (p) => `He bis ${p} bar`,
+      rbHe: 'He bis',
+      rbNoHe: 'Kein He nötig',
+      drainHelium: (keep, cur) => `Zu viel Helium in der Flasche für das Zielgemisch. Flasche erst von <strong>${cur} bar</strong> auf <strong>${keep} bar</strong> ablassen.`,
+      unreachable: 'Dieses Gemisch lässt sich mit Luft als Auffüllgas nicht mischen: Es hat zu wenig Sauerstoff im Verhältnis zum Stickstoff. Mehr Helium wählen.',
+      hypoxic: (d) => `Hypoxisches Gemisch: nicht an der Oberfläche atmen. Mindesttiefe ${d} m (ppO₂ 0,18).`,
+      minDepth: 'Mindesttiefe (ppO₂ 0,18)',
+      endLabel: (pp) => `END bei MOD ${pp}`,
+      densityLabel: (pp) => `Gasdichte bei MOD ${pp}`,
+      mixTx: (o2, he) => `${o2} % O₂ · ${he} % He`,
+      errO2RangeTx: 'Sauerstoffanteil muss zwischen 5 % und 100 % liegen.',
+      errHeRange: 'Heliumanteil muss zwischen 0 % und 95 % liegen.',
+      errMixSum: 'Sauerstoff und Helium zusammen dürfen höchstens 100 % sein.',
+      bestMixTitle: 'Bestes Gemisch berechnen',
+      bmDepth: 'Zieltiefe',
+      bmPpO2: 'Max. ppO₂',
+      bmEnd: 'Gewünschte END',
+      o2Narcotic: 'O₂ als narkotisch rechnen',
+      bestMixApply: 'Als Ziel übernehmen',
+      bestMixResult: (name, depth, modM, endM, dens) => `<strong>${name}</strong>für ${depth} m: MOD ${modM} m · END ${endM} m · Dichte ${dens} g/l`,
+      bestMixInvalid: 'Bitte Tiefe (10–150 m), ppO₂ (1,0–1,6) und END prüfen.',
       installApp: 'App installieren',
       installHintIOS: 'Zum Installieren unten auf <svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 11v9h12v-9"/></svg> „Teilen“ tippen und dann „Zum Home-Bildschirm“ wählen.',
       realGasTitle: 'Realgas-Korrektur',
       realGasHint: 'Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger.',
+      realGasHintTx: 'Genauer bei hohen Drücken: Sauerstoff lässt sich stärker zusammendrücken als ein ideales Gas, Luft weniger und Helium deutlich weniger.',
       idealCompare: (p) => `Ohne Realgas-Korrektur: ${p} bar`,
       pauseShort: 'Pause nach O₂',
       rbO2: 'O₂ bis',
@@ -114,7 +159,7 @@
       refAmbient: (t) => `Umgebung ${t} °C`,
       minutes: (m) => `${m} min`,
       moreThan: (m) => `> ${m} min`,
-      naiveText: (how, p, mix, tp, tmix) => `<strong>Ohne Korrektur</strong> – also ${how} am warmen Manometer – wären nach dem Abkühlen nur <strong>${p} bar</strong> mit <strong>${mix} % O₂</strong> in der Flasche. Soll: ${tp} bar mit ${tmix} % O₂.`,
+      naiveText: (how, p, mix, tp, tmix) => `<strong>Ohne Korrektur</strong> – also ${how} am warmen Manometer – wären nach dem Abkühlen nur <strong>${p} bar</strong> mit <strong>${mix}</strong> in der Flasche. Soll: ${tp} bar mit ${tmix}.`,
       naiveHowO2: (p) => `O₂ bis ${p} bar`,
       naiveHowAir: (p) => `Luft bis ${p} bar`,
       and: ' und ',
@@ -134,15 +179,16 @@
       stepO2Hot: (to, cold) => `Reinen O₂ zugeben, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Das Gas ist dabei warm. Nach dem Abkühlen fällt der Druck auf ${cold} bar – das ist die richtige Menge O₂.</span>`,
       stepPause: (dur, p) => `Abkühlen lassen (ca. ${dur}) – das Manometer fällt auf ca. <strong>${p} bar</strong>`,
       stepAirHot: (to, cold) => `Mit Luft auffüllen, bis das Manometer <strong>${to} bar</strong> zeigt<span class="step-note">Das Gas ist dabei warm. Nach dem Abkühlen fällt der Druck auf ${cold} bar.</span>`,
-      stepCool: (dur, p, mix) => `Abkühlen lassen (ca. ${dur}) – das Manometer fällt auf ca. <strong>${p} bar</strong>. Dann analysieren – Soll: <strong>${mix} % O₂</strong>`,
+      stepCool: (dur, p, mix) => `Abkühlen lassen (ca. ${dur}) – das Manometer fällt auf ca. <strong>${p} bar</strong>. Dann analysieren – Soll: <strong>${mix}</strong>`,
       stepNoO2: 'Kein Sauerstoff nötig',
       lessThanMinute: '< 1 min',
       topUpFirstLine: (m, p) => `Erst ${m} min abkühlen lassen (fällt auf ca. ${p} bar), dann mit Luft auffüllen`,
       stepNoAir: 'Keine Luft nötig',
-      stepAnalyze: (mix) => `Abkühlen lassen, Gemisch analysieren – Soll: <strong>${mix} % O₂</strong>`,
+      stepAnalyze: (mix) => `Abkühlen lassen, Gemisch analysieren – Soll: <strong>${mix}</strong>`,
     },
     en: {
       title: 'Nitrox Top-Up Calculator',
+      titleTx: 'Trimix Top-Up Calculator',
       subtitle: 'Partial pressure blending: what goes into the cylinder?',
       inputs: 'Inputs',
       currentMix: 'Current Mix',
@@ -165,7 +211,7 @@
       steps: 'Step by step',
       finalMix: 'Final mix',
       totalGas: 'Total gas',
-      disclaimer: 'Calculation aid using the partial pressure method (ideal gas, air = 21 % O₂). Not a substitute for gas blender training – always analyse the mix after filling.',
+      disclaimer: 'Calculation aid using the partial pressure method (air = 21 % O₂). Not a substitute for gas blender training – always analyse the mix after filling, for trimix both O₂ and He.',
       cylinderAria: 'Cylinder visualisation',
       fillO2To: 'Fill O₂ up to',
       thenAirTo: 'Then top up with air to',
@@ -174,10 +220,49 @@
       barPureO2: 'bar pure O₂',
       noO2Needed: 'No oxygen needed – top up with air only.',
       moreSettings: 'More settings',
+      helium: 'Helium',
+      n2Rest: (p) => `Remaining nitrogen: ${p} % N₂`,
+      fillOrder: 'Fill order',
+      heFirst: 'Helium first',
+      o2First: 'Oxygen first',
+      legendHe: 'Helium',
+      fillHeTo: 'Fill helium up to',
+      noHeNeeded: 'No helium needed',
+      addHe: 'Add He',
+      addHeCooled: 'He amount (cooled)',
+      litersHe: 'litres He',
+      heCoolPause: 'Let cool after helium',
+      pauseHeShort: 'pause after He',
+      evHe: 'He done',
+      stepHe: (to, add) => `Add helium until the gauge reads <strong>${to} bar</strong> <span class="muted">(+${add} bar)</span>`,
+      stepHeHot: (to, cold) => `Add helium until the gauge reads <strong>${to} bar</strong><span class="step-note">The gas is warm at this point. Once it cools, the pressure drops to ${cold} bar.</span>`,
+      stepNoHe: 'No helium needed',
+      naiveHowHe: (p) => `helium to ${p} bar`,
+      rbHe: 'He to',
+      rbNoHe: 'No He needed',
+      drainHelium: (keep, cur) => `Too much helium in the cylinder for the requested mix. Bleed the cylinder from <strong>${cur} bar</strong> down to <strong>${keep} bar</strong> first.`,
+      unreachable: 'This mix cannot be made with air as the top-up gas: it has too little oxygen compared to nitrogen. Choose more helium.',
+      hypoxic: (d) => `Hypoxic mix: do not breathe it at the surface. Minimum depth ${d} m (ppO₂ 0.18).`,
+      minDepth: 'Minimum depth (ppO₂ 0.18)',
+      endLabel: (pp) => `END at MOD ${pp}`,
+      densityLabel: (pp) => `Gas density at MOD ${pp}`,
+      mixTx: (o2, he) => `${o2} % O₂ · ${he} % He`,
+      errO2RangeTx: 'Oxygen content must be between 5 % and 100 %.',
+      errHeRange: 'Helium content must be between 0 % and 95 %.',
+      errMixSum: 'Oxygen and helium together must not exceed 100 %.',
+      bestMixTitle: 'Find the best mix',
+      bmDepth: 'Target depth',
+      bmPpO2: 'Max. ppO₂',
+      bmEnd: 'Target END',
+      o2Narcotic: 'Count O₂ as narcotic',
+      bestMixApply: 'Use as target',
+      bestMixResult: (name, depth, modM, endM, dens) => `<strong>${name}</strong>for ${depth} m: MOD ${modM} m · END ${endM} m · density ${dens} g/l`,
+      bestMixInvalid: 'Please check depth (10–150 m), ppO₂ (1.0–1.6) and END.',
       installApp: 'Install app',
       installHintIOS: 'To install, tap <svg class="share-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M6 11v9h12v-9"/></svg> “Share” and then “Add to Home Screen”.',
       realGasTitle: 'Real-gas correction',
       realGasHint: 'More accurate at high pressures: oxygen compresses more than an ideal gas, air less.',
+      realGasHintTx: 'More accurate at high pressures: oxygen compresses more than an ideal gas, air less and helium much less.',
       idealCompare: (p) => `Without real-gas correction: ${p} bar`,
       pauseShort: 'pause after O₂',
       rbO2: 'O₂ to',
@@ -240,7 +325,7 @@
       refAmbient: (t) => `Ambient ${t} °C`,
       minutes: (m) => `${m} min`,
       moreThan: (m) => `> ${m} min`,
-      naiveText: (how, p, mix, tp, tmix) => `<strong>Without correction</strong> – filling ${how} on the warm gauge – the cylinder would hold only <strong>${p} bar</strong> at <strong>${mix} % O₂</strong> after cooling. Target: ${tp} bar at ${tmix} % O₂.`,
+      naiveText: (how, p, mix, tp, tmix) => `<strong>Without correction</strong> – filling ${how} on the warm gauge – the cylinder would hold only <strong>${p} bar</strong> at <strong>${mix}</strong> after cooling. Target: ${tp} bar at ${tmix}.`,
       naiveHowO2: (p) => `O₂ to ${p} bar`,
       naiveHowAir: (p) => `air to ${p} bar`,
       and: ' and ',
@@ -260,12 +345,12 @@
       stepO2Hot: (to, cold) => `Add pure O₂ until the gauge reads <strong>${to} bar</strong><span class="step-note">The gas is warm at this point. Once it cools, the pressure drops to ${cold} bar – that is the right amount of O₂.</span>`,
       stepPause: (dur, p) => `Let it cool (approx. ${dur}) – the gauge drops to about <strong>${p} bar</strong>`,
       stepAirHot: (to, cold) => `Top up with air until the gauge reads <strong>${to} bar</strong><span class="step-note">The gas is warm at this point. Once it cools, the pressure drops to ${cold} bar.</span>`,
-      stepCool: (dur, p, mix) => `Let it cool (approx. ${dur}) – the gauge drops to about <strong>${p} bar</strong>. Then analyse – target: <strong>${mix} % O₂</strong>`,
+      stepCool: (dur, p, mix) => `Let it cool (approx. ${dur}) – the gauge drops to about <strong>${p} bar</strong>. Then analyse – target: <strong>${mix}</strong>`,
       stepNoO2: 'No oxygen needed',
       lessThanMinute: '< 1 min',
       topUpFirstLine: (m, p) => `Let it cool for ${m} min first (drops to about ${p} bar), then top up with air`,
       stepNoAir: 'No air needed',
-      stepAnalyze: (mix) => `Let it cool, analyse the mix – target: <strong>${mix} % O₂</strong>`,
+      stepAnalyze: (mix) => `Let it cool, analyse the mix – target: <strong>${mix}</strong>`,
     },
   };
 
@@ -275,8 +360,8 @@
   // A missing element (e.g. from an older cached index.html) gets a detached stand-in
   // instead of stopping the whole app
   const $ = (id) => document.getElementById(id) || document.createElement('div');
-  const FIELDS = ['curO2', 'tgtO2', 'size', 'curP', 'fillP', 'tAmb', 'rate', 'airPause'];
-  const TOGGLES = ['realGas', 'thermoOn', 'waterBath', 'coolPause', 'airTopUp'];
+  const FIELDS = ['curO2', 'tgtO2', 'curHe', 'tgtHe', 'size', 'curP', 'fillP', 'tAmb', 'rate', 'airPause', 'bmDepth', 'bmPpO2', 'bmEnd'];
+  const TOGGLES = ['realGas', 'thermoOn', 'waterBath', 'heCoolPause', 'coolPause', 'airTopUp', 'o2Narcotic'];
   const state = { ...DEFAULTS };
 
   // ---------- Storage ----------
@@ -292,6 +377,9 @@
       }
       if (!(state.lang in I18N)) state.lang = DEFAULTS.lang;
       if (!(state.material in MAT_LABEL)) state.material = DEFAULTS.material;
+      if (state.mode !== 'trimix') state.mode = 'nitrox';
+      if (state.fillOrder !== 'o2') state.fillOrder = 'he';
+      if (!state.otherMix || typeof state.otherMix !== 'object') state.otherMix = { ...DEFAULTS.otherMix };
     } catch (_) { /* storage unavailable */ }
   }
   function save() {
@@ -313,7 +401,14 @@
   };
 
   function validate(v) {
-    if ([v.curO2, v.tgtO2].some((x) => !Number.isFinite(x) || x < 21 || x > 100)) return 'errO2Range';
+    const trimix = state.mode === 'trimix';
+    if ([v.curO2, v.tgtO2].some((x) => !Number.isFinite(x) || x < (trimix ? 5 : 21) || x > 100)) {
+      return trimix ? 'errO2RangeTx' : 'errO2Range';
+    }
+    if (trimix) {
+      if ([v.curHe, v.tgtHe].some((x) => !Number.isFinite(x) || x < 0 || x > 95)) return 'errHeRange';
+      if (v.curO2 + v.curHe > 100 || v.tgtO2 + v.tgtHe > 100) return 'errMixSum';
+    }
     if (!Number.isFinite(v.size) || v.size <= 0 || v.size > 100) return 'errSize';
     if ([v.curP, v.fillP].some((x) => !Number.isFinite(x) || x < 0 || x > 350)) return 'errPressure';
     if (v.fillP <= v.curP) return 'errFillLower';
@@ -325,23 +420,28 @@
     return null;
   }
 
+  // Helium and O2 steps that add gas, in fill order, each with its pause switch; a
+  // pause only happens if more gas follows
+  function gasStages(r, needed, airFollows) {
+    const steps = Blend.fillSteps(r).filter((s) => s.gas !== 'air' && needed(s.gas));
+    const pauseSwitch = { he: state.heCoolPause, o2: state.coolPause };
+    return steps.map((s, i) => ({ gas: s.gas, value: s.to, pauseAfter: pauseSwitch[s.gas] && (i < steps.length - 1 || airFollows) }));
+  }
+
   /**
    * Runs the thermal model twice: with correction (stop each stage at the gas
    * amount the cold calculation asks for) and without (stop when the warm gauge
-   * shows the cold target value).
+   * shows the cold target value). Order: helium and O2 in fill order, then air.
    */
-  function runThermo(v, r, needsO2, needsAir) {
-    const topUp = state.airTopUp && needsAir;
+  function runThermo(v, r, needs) {
+    const topUp = state.airTopUp && needs.air;
     const run = (stopAt) => {
-      const stages = [];
-      if (needsO2) {
-        stages.push({ gas: 'o2', stopAt, value: r.keep + r.o2, pauseAfter: state.coolPause && needsAir });
-      }
+      const stages = gasStages(r, (gas) => needs[gas], needs.air).map((st) => ({ ...st, stopAt }));
       if (topUp) {
         // Air up to the target on the warm gauge, cool for a while, then top up
         stages.push({ gas: 'air', stopAt: 'gauge', value: v.fillP, pauseAfter: true, pauseMinutes: v.airPause });
         stages.push({ gas: 'air', id: 'topUp', stopAt, value: v.fillP });
-      } else if (needsAir) {
+      } else if (needs.air) {
         stages.push({ gas: 'air', stopAt, value: v.fillP });
       }
       return Thermo.simulateFill({
@@ -352,6 +452,7 @@
         waterBath: state.waterBath,
         keep: r.keep,
         f1: v.curO2 / 100,
+        h1: v.curHe / 100,
         stages,
       });
     };
@@ -360,18 +461,20 @@
     const event = (type, stage) => ok.events.find((e) => e.type === type && (stage == null || e.stage === stage));
     // Seconds after the end of filling until the gas is within 2 K of ambient
     const cooled = ok.samples.find((s) => s.t > ok.fillEnd.t && s.tC - v.tAmb < 2);
-    // The warm gauge can already be above the target after the O2 step; then the first
-    // air fill adds nothing and the procedure is just: cool down, then fill air
+    // The warm gauge can already be above the target before the air; then the first
+    // fill adds nothing and the procedure is just: cool down, then fill
     let skipFirstAir = false;
     if (topUp) {
-      const o2End = event('o2');
-      skipFirstAir = event('air').pc - (o2End ? o2End.pc : r.keep) < 0.05;
+      const fills = ok.events.filter((e) => e.type === 'he' || e.type === 'o2');
+      const before = fills[fills.length - 1];
+      skipFirstAir = event('air').pc - (before ? before.pc : r.keep) < 0.05;
     }
     return { ok, naive, event, topUp, skipFirstAir, coolSec: cooled ? cooled.t - ok.fillEnd.t : null };
   }
 
-  // Warm gauge reading at the end of the O2 step for the ideal-gas target
-  function idealWarmO2(v, rIdeal) {
+  // Warm gauge readings at the end of the helium and O2 steps for the ideal-gas targets
+  function idealWarm(v, rIdeal) {
+    const stages = gasStages(rIdeal, (gas) => rIdeal[gas] > 0.05, false).map((st) => ({ ...st, stopAt: 'gas' }));
     const sim = Thermo.simulateFill({
       liters: v.size,
       material: state.material,
@@ -380,97 +483,177 @@
       waterBath: state.waterBath,
       keep: rIdeal.keep,
       f1: v.curO2 / 100,
-      stages: [{ gas: 'o2', stopAt: 'gas', value: rIdeal.keep + rIdeal.o2 }],
+      h1: v.curHe / 100,
+      stages,
       coolMinutes: 0,
     });
-    return sim.events[0].p;
+    const end = (type) => sim.events.find((e) => e.type === type);
+    return { he: end('he') && end('he').p, o2: end('o2') && end('o2').p };
+  }
+
+  // Best mix for the depth, ppO2 and END in the "best mix" card (null if invalid)
+  function currentBestMix() {
+    const depth = parseFloat(state.bmDepth);
+    const ppO2 = parseFloat(state.bmPpO2);
+    const endTarget = parseFloat(state.bmEnd);
+    if (!(depth >= 10 && depth <= 150) || !(ppO2 >= 1 && ppO2 <= 1.6) || !(endTarget >= 0 && endTarget <= 60)) return null;
+    return { ...Blend.bestMix(depth, ppO2, endTarget, state.o2Narcotic), depth };
+  }
+
+  function renderBestMix(L) {
+    const m = currentBestMix();
+    $('bestMixApply').disabled = !m;
+    if (!m) {
+      $('bestMixText').textContent = L.bestMixInvalid;
+      return;
+    }
+    const name = m.he > 0 ? `Tx ${m.o2}/${m.he}` : `EAN${m.o2}`;
+    const endM = Blend.end(m.depth, m.o2 / 100, m.he / 100, state.o2Narcotic);
+    const dens = Blend.density(m.depth, m.o2 / 100, m.he / 100);
+    // MOD at the chosen ppO2; with the O2 rounded down it is never shallower than the depth
+    const modM = Blend.mod(m.o2 / 100, parseFloat(state.bmPpO2));
+    $('bestMixText').innerHTML = L.bestMixResult(name, fmtAuto(m.depth), fmt(modM), fmt(endM), fmt(dens));
   }
 
   // ---------- Rendering ----------
   const CYL = { top: 70, bottom: 400, x: 40, w: 110 };
 
+  // Shows an input error or an unreachable target instead of results
+  function showProblem(L, message) {
+    const errBox = $('error');
+    errBox.textContent = message;
+    errBox.hidden = false;
+    ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'warmBadgeHe', 'heroCold', 'airCold', 'heCold', 'heroIdeal',
+      'heIdeal', 'airTopUpRow', 'hypoxicAlert'].forEach((id) => ($(id).hidden = true));
+    $('resultTiles').classList.add('dim');
+    document.querySelector('.hero').classList.add('dim');
+    ['o2Bar', 'airBar', 'heBar', 'o2L', 'airL', 'heL', 'factMix', 'factTotal', 'factMod14', 'factMod16', 'factEnd',
+      'factDensity', 'factMinDepth', 'o2Target', 'o2From', 'o2TargetSub', 'o2Delta', 'airTarget', 'heTarget']
+      .forEach((id) => ($(id).textContent = '–'));
+    $('steps').innerHTML = '';
+    setGauge(null);
+    drawCylinder(null);
+    renderThermo(null);
+    updateResultBar({ error: message });
+  }
+
   function render() {
     const v = {};
     FIELDS.forEach((k) => (v[k] = parseFloat(state[k])));
+    const trimix = state.mode === 'trimix';
+    if (!trimix) {
+      v.curHe = 0;
+      v.tgtHe = 0;
+    }
     const L = I18N[state.lang];
+    const num = (x) => (Number.isFinite(x) ? fmtAuto(x) : '–');
 
     $('materialHint').textContent = L[MAT_HINT[state.material]];
     $('factMod14Label').textContent = `MOD ppO₂ ${fmt(1.4)}`;
     $('factMod16Label').textContent = `MOD ppO₂ ${fmt(1.6)}`;
+    $('factEndLabel').textContent = L.endLabel(fmt(1.4));
+    $('factDensityLabel').textContent = L.densityLabel(fmt(1.4));
     // With the thermal model on, the small tiles show amounts after cooling, not the warm gauge rise
+    $('heTileLabel').textContent = state.thermoOn ? L.addHeCooled : L.addHe;
     $('o2TileLabel').textContent = state.thermoOn ? L.addO2Cooled : L.addO2;
     $('airTileLabel').textContent = state.thermoOn ? L.addAirCooled : L.addAir;
-    const num = (x) => (Number.isFinite(x) ? fmtAuto(x) : '–');
+    // No negative nitrogen while O2 + He is over 100 %
+    const n2Rest = (o2, he) => L.n2Rest(100 - o2 - he >= 0 ? num(100 - o2 - he) : '–');
+    $('curN2').textContent = n2Rest(v.curO2, v.curHe);
+    $('tgtN2').textContent = n2Rest(v.tgtO2, v.tgtHe);
     $('settingsSummary').textContent = [
-      `${num(v.tAmb)} °C`, `${num(v.rate)} bar/min`, state.waterBath && L.waterBath, state.coolPause && L.pauseShort,
+      `${num(v.tAmb)} °C`, `${num(v.rate)} bar/min`, state.waterBath && L.waterBath,
+      trimix && state.heCoolPause && L.pauseHeShort, state.coolPause && L.pauseShort,
       state.airTopUp && L.topUpShort(num(v.airPause)),
     ].filter(Boolean).join(' · ');
+    renderBestMix(L);
 
     const err = validate(v);
     // Make an invalid field in the folded "More settings" visible
     if (err === 'errTemp' || err === 'errRate' || err === 'errAirPause') $('moreSettings').open = true;
-    markInvalid(err);
-    const errBox = $('error');
-    const tiles = $('resultTiles');
-    const hero = document.querySelector('.hero');
-
+    markInvalid(err, v);
     if (err) {
-      errBox.textContent = L[err];
-      errBox.hidden = false;
-      ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'heroCold', 'airCold', 'heroIdeal', 'airTopUpRow'].forEach((id) => ($(id).hidden = true));
-      tiles.classList.add('dim');
-      hero.classList.add('dim');
-      ['o2Bar', 'airBar', 'o2L', 'airL', 'factMix', 'factTotal', 'factMod14', 'factMod16',
-        'o2Target', 'o2From', 'o2TargetSub', 'o2Delta', 'airTarget'].forEach((id) => ($(id).textContent = '–'));
-      $('steps').innerHTML = '';
-      setGauge(null);
-      drawCylinder(null, v);
-      renderThermo(null);
-      updateResultBar({ error: L[err] });
+      showProblem(L, L[err]);
       return;
     }
-    errBox.hidden = true;
-    tiles.classList.remove('dim');
-    hero.classList.remove('dim');
 
     // Real gas: amounts from the compressibility factor at the (cooled) cylinder temperature
     const tK = (state.thermoOn ? v.tAmb : 20) + 273.15;
-    const r = state.realGas ? Blend.real(v, tK) : Blend.ideal(v);
-    const afterO2 = r.keep + r.o2;
-    const needsO2 = r.o2 > 0.05;
-    const needsAir = r.air > 0.05;
-    const th = state.thermoOn ? runThermo(v, r, needsO2, needsAir) : null;
-    // Gauge readings to fill to: warm values when the thermal model is on
-    const gaugeO2 = th && needsO2 ? th.event('o2').p : afterO2;
-    const gaugeEnd = th ? th.ok.fillEnd.p : v.fillP;
+    const calc = {
+      curO2: v.curO2, curHe: v.curHe, tgtO2: v.tgtO2, tgtHe: v.tgtHe, curP: v.curP, fillP: v.fillP, size: v.size,
+      order: trimix ? state.fillOrder : 'he',
+    };
+    const r = state.realGas ? Blend.real(calc, tK) : Blend.ideal(calc);
+    if (r.unreachable) {
+      showProblem(L, L.unreachable);
+      return;
+    }
+    $('error').hidden = true;
+    $('resultTiles').classList.remove('dim');
+    document.querySelector('.hero').classList.remove('dim');
 
-    // Hero: gauge targets
+    const needs = { he: r.he > 0.05, o2: r.o2 > 0.05, air: r.air > 0.05 };
+    // Cold gauge readings before and after each step, in fill order
+    const fill = Blend.fillSteps(r);
+    const step = Object.fromEntries(fill.map((st) => [st.gas, st]));
+    const afterHe = step.he.to;
+    const afterO2 = step.o2.to;
+    // Helium (trimix only) and O2 in fill order
+    const gasOrder = fill.map((st) => st.gas).filter((gas) => gas === 'o2' || (gas === 'he' && trimix));
+    const th = state.thermoOn ? runThermo(v, r, needs) : null;
+    // Gauge readings to fill to: warm values when the thermal model is on
+    const gaugeHe = th && needs.he ? th.event('he').p : afterHe;
+    const gaugeO2 = th && needs.o2 ? th.event('o2').p : afterO2;
+    const gaugeEnd = th ? th.ok.fillEnd.p : v.fillP;
+    // Gauge reading when the O2 step starts: after helium and its pause if helium comes first
+    const heBefore = th && needs.he && gasOrder[0] === 'he' ? th.event('pause', 'he') || th.event('he') : null;
+    const o2Start = heBefore ? heBefore.p : step.o2.from;
+
+    // Comparison with the ideal-gas result, on the same basis as the big numbers
+    const rIdeal = state.realGas ? Blend.ideal(calc) : null;
+    const idealOk = rIdeal && !rIdeal.unreachable;
+    const showIdealO2 = needs.o2 && idealOk && rIdeal.o2 > 0.05;
+    const showIdealHe = trimix && needs.he && idealOk && rIdeal.he > 0.05;
+    const warmIdeal = th && (showIdealO2 || showIdealHe) ? idealWarm(v, rIdeal) : null;
+    const idealStep = idealOk ? Object.fromEntries(Blend.fillSteps(rIdeal).map((st) => [st.gas, st])) : null;
+
+    // Hero: helium (trimix only)
+    $('heTarget').textContent = fmt(gaugeHe);
+    $('heroHeLabel').textContent = needs.he ? L.fillHeTo : L.noHeNeeded;
+    $('heroHeValue').hidden = !needs.he;
+    $('heroHe').classList.toggle('dim', !needs.he);
+    $('warmBadgeHe').hidden = !(th && needs.he);
+    $('heCold').hidden = !(th && needs.he);
+    $('heHeat').textContent = L.heatDelta(fmt(gaugeHe - afterHe));
+    $('heColdText').textContent = L.coldEq(fmt(afterHe));
+    $('heIdeal').hidden = !showIdealHe;
+    if (showIdealHe) $('heIdeal').textContent = L.idealCompare(fmt(warmIdeal ? warmIdeal.he : idealStep.he.to));
+
+    // Hero: O2
     $('o2Target').textContent = fmt(gaugeO2);
-    $('o2From').textContent = fmt(r.keep);
+    $('o2From').textContent = fmt(o2Start);
     $('o2TargetSub').textContent = fmt(gaugeO2);
     $('o2Delta').textContent = th ? fmtInt(r.litersO2 ?? r.o2 * v.size) : `+${fmt(r.o2)}`;
     $('o2DeltaLabel').textContent = th ? L.litersO2 : L.barPureO2;
-    $('heroSub').hidden = !needsO2;
-    $('heroNone').hidden = needsO2;
-    $('heroValue').hidden = !needsO2;
-    $('heroO2').classList.toggle('dim', !needsO2);
-    $('warmBadge').hidden = !(th && needsO2);
-    $('heroCold').hidden = !(th && needsO2);
+    $('heroSub').hidden = !needs.o2;
+    $('heroNone').hidden = needs.o2;
+    $('heroValue').hidden = !needs.o2;
+    $('heroO2').classList.toggle('dim', !needs.o2);
+    $('warmBadge').hidden = !(th && needs.o2);
+    $('heroCold').hidden = !(th && needs.o2);
     $('o2Heat').textContent = L.heatDelta(fmt(gaugeO2 - afterO2));
     $('o2ColdText').textContent = L.coldEq(fmt(afterO2));
-    // Same basis as the big number: warm reading when the heating model is on
-    const rIdeal = state.realGas ? Blend.ideal(v) : null;
-    const showIdeal = needsO2 && rIdeal && rIdeal.o2 > 0.05;
-    $('heroIdeal').hidden = !showIdeal;
-    if (showIdeal) $('heroIdeal').textContent = L.idealCompare(fmt(th ? idealWarmO2(v, rIdeal) : rIdeal.keep + rIdeal.o2));
+    $('heroIdeal').hidden = !showIdealO2;
+    if (showIdealO2) $('heroIdeal').textContent = L.idealCompare(fmt(warmIdeal ? warmIdeal.o2 : idealStep.o2.to));
     $('drainBadge').hidden = !r.drain;
     if (r.drain) $('drainBadge').textContent = L.drainFirst(fmt(r.keep));
     setGauge(r, v.fillP);
 
-    $('heroAirLabel').textContent = needsAir ? L.thenAirTo : L.noAirNeeded;
-    $('heroAirValue').hidden = !needsAir;
-    $('heroAir').classList.toggle('dim', !needsAir);
-    // Two-step air fill: the first fill goes only up to the target, the top-up value follows
+    // Hero: air
+    $('heroAirLabel').textContent = needs.air ? L.thenAirTo : L.noAirNeeded;
+    $('heroAirValue').hidden = !needs.air;
+    $('heroAir').classList.toggle('dim', !needs.air);
+    // Two-step fill: the first fill goes only up to the target, the top-up value follows
     const topUp = th && th.topUp;
     const skipFirst = topUp && th.skipFirstAir;
     $('airTarget').textContent = fmt(topUp && !skipFirst ? v.fillP : gaugeEnd);
@@ -482,62 +665,89 @@
         ? L.topUpFirstLine(fmtAuto(v.airPause), afterPause)
         : L.topUpLine(fmtAuto(v.airPause), afterPause, fmt(gaugeEnd));
     }
-    $('warmBadgeAir').hidden = !(th && needsAir);
-    $('airCold').hidden = !(th && needsAir);
+    $('warmBadgeAir').hidden = !(th && needs.air);
+    $('airCold').hidden = !(th && needs.air);
     $('airHeat').textContent = L.heatDelta(fmt(gaugeEnd - v.fillP));
     $('airColdText').textContent = L.coldEq(fmt(v.fillP));
 
+    $('heBar').textContent = fmt(r.he);
     $('o2Bar').textContent = fmt(r.o2);
     $('airBar').textContent = fmt(r.air);
+    $('heL').textContent = fmtInt(r.litersHe ?? r.he * v.size);
     $('o2L').textContent = fmtInt(r.litersO2 ?? r.o2 * v.size);
     $('airL').textContent = fmtInt(r.litersAir ?? r.air * v.size);
 
     const drainBox = $('drainAlert');
     if (r.drain) {
-      drainBox.innerHTML = (r.drain === 'lean' ? L.drainLean : L.drainRich)(fmt(r.keep), fmt(v.curP));
+      const message = { lean: L.drainLean, rich: L.drainRich, helium: L.drainHelium }[r.drain];
+      drainBox.innerHTML = message(fmt(r.keep), fmt(v.curP));
       drainBox.hidden = false;
     } else {
       drainBox.hidden = true;
     }
 
     // Steps
+    const mixText = trimix ? L.mixTx(fmt(v.tgtO2), fmt(v.tgtHe)) : `${fmt(v.tgtO2)} % O₂`;
     const steps = [];
     if (r.drain) steps.push(['s-drain', L.stepDrain(fmt(r.keep))]);
     if (th) {
-      steps.push(['s-o2', needsO2 ? L.stepO2Hot(fmt(gaugeO2), fmt(afterO2)) : L.stepNoO2]);
-      const pause = th.event('pause', 'o2');
       // A pause shorter than a minute means the gas was already cool: no step for it
-      if (pause && pause.t - th.event('o2').t >= 60) {
-        steps.push(['s-pause', L.stepPause(durText(pause.t - th.event('o2').t), fmt(pause.p))]);
-      }
+      const pauseStep = (stage) => {
+        const pause = th.event('pause', stage);
+        const start = th.event(stage);
+        if (pause && pause.t - start.t >= 60) steps.push(['s-pause', L.stepPause(durText(pause.t - start.t), fmt(pause.p))]);
+      };
+      gasOrder.forEach((gas) => {
+        if (gas === 'he') steps.push(['s-he', needs.he ? L.stepHeHot(fmt(gaugeHe), fmt(afterHe)) : L.stepNoHe]);
+        else steps.push(['s-o2', needs.o2 ? L.stepO2Hot(fmt(gaugeO2), fmt(afterO2)) : L.stepNoO2]);
+        if (needs[gas]) pauseStep(gas);
+      });
       if (topUp) {
         const airPause = th.event('pause', 'air');
         if (!skipFirst) steps.push(['s-air', L.stepAirFirst(fmt(v.fillP))]);
         steps.push(['s-pause', L.stepPause(durText(airPause.t - th.event('air').t), fmt(airPause.p))]);
         steps.push(['s-air', (skipFirst ? L.stepAirHot : L.stepAirTopUp)(fmt(gaugeEnd), fmt(v.fillP))]);
       } else {
-        steps.push(['s-air', needsAir ? L.stepAirHot(fmt(gaugeEnd), fmt(v.fillP)) : L.stepNoAir]);
+        steps.push(['s-air', needs.air ? L.stepAirHot(fmt(gaugeEnd), fmt(v.fillP)) : L.stepNoAir]);
       }
-      steps.push(['s-analyze', L.stepCool(durText(th.coolSec), fmt(v.fillP), fmt(v.tgtO2))]);
+      steps.push(['s-analyze', L.stepCool(durText(th.coolSec), fmt(v.fillP), mixText)]);
     } else {
-      steps.push(['s-o2', needsO2 ? L.stepO2(fmt(afterO2), fmt(r.o2)) : L.stepNoO2]);
-      steps.push(['s-air', needsAir ? L.stepAir(fmt(v.fillP), fmt(r.air)) : L.stepNoAir]);
-      steps.push(['s-analyze', L.stepAnalyze(fmt(v.tgtO2))]);
+      gasOrder.forEach((gas) => {
+        if (gas === 'he') steps.push(['s-he', needs.he ? L.stepHe(fmt(afterHe), fmt(r.he)) : L.stepNoHe]);
+        else steps.push(['s-o2', needs.o2 ? L.stepO2(fmt(afterO2), fmt(r.o2)) : L.stepNoO2]);
+      });
+      steps.push(['s-air', needs.air ? L.stepAir(fmt(v.fillP), fmt(r.air)) : L.stepNoAir]);
+      steps.push(['s-analyze', L.stepAnalyze(mixText)]);
     }
     $('steps').innerHTML = steps.map(([cls, html]) => `<li class="${cls}"><span>${html}</span></li>`).join('');
 
     // Facts
     const f2 = v.tgtO2 / 100;
-    $('factMix').textContent = `${fmt(r.finalO2)} % O₂`;
+    const fHe = v.tgtHe / 100;
+    $('factMix').textContent = trimix ? L.mixTx(fmt(r.finalO2), fmt(r.finalHe)) : `${fmt(r.finalO2)} % O₂`;
     $('factTotal').textContent = `${fmtInt(r.litersTotal ?? v.fillP * v.size)} L`;
     $('factMod14').textContent = `${fmt((1.4 / f2 - 1) * 10)} m`;
     $('factMod16').textContent = `${fmt((1.6 / f2 - 1) * 10)} m`;
+    const hypoxic = trimix && v.tgtO2 < 18;
+    $('hypoxicAlert').hidden = !hypoxic;
+    $('factMinDepthBox').hidden = !hypoxic;
+    if (trimix) {
+      const mod14 = Blend.mod(f2, 1.4);
+      const dens = Blend.density(mod14, f2, fHe);
+      $('factEnd').textContent = `${fmt(Blend.end(mod14, f2, fHe, state.o2Narcotic))} m`;
+      $('factDensity').textContent = `${fmt(dens)} g/l`;
+      $('factDensityBox').classList.toggle('warn', dens > 5.2 && dens <= 6.2);
+      $('factDensityBox').classList.toggle('danger', dens > 6.2);
+      $('factMinDepth').textContent = `${fmt(Blend.minDepth(f2))} m`;
+      if (hypoxic) $('hypoxicAlert').textContent = L.hypoxic(fmt(Blend.minDepth(f2)));
+    }
 
     drawCylinder(r, v);
     updateResultBar({
-      drain: r.drain ? fmt(r.keep) : null, needsO2, needsAir, o2: fmt(gaugeO2), air: topUp && !skipFirst ? `${fmt(v.fillP)} → ${fmt(gaugeEnd)}` : fmt(gaugeEnd), warm: !!th,
+      drain: r.drain ? fmt(r.keep) : null, gasOrder, needs, he: fmt(gaugeHe), o2: fmt(gaugeO2),
+      air: topUp && !skipFirst ? `${fmt(v.fillP)} → ${fmt(gaugeEnd)}` : fmt(gaugeEnd), warm: !!th,
     });
-    renderThermo(th, v, r, needsO2, needsAir, tK);
+    renderThermo(th, v, r, needs, tK);
   }
 
   // Phones: compact summary of the gauge targets, pinned to the bottom of the screen
@@ -570,10 +780,11 @@
       }
       return el;
     };
-    values.append(
-      s.needsO2 ? item(L.rbO2, s.o2) : item(L.rbNoO2),
-      s.needsAir ? item(L.rbAir, s.air) : item(L.rbNoAir)
-    );
+    const gasItem = {
+      he: () => (s.needs.he ? item(L.rbHe, s.he) : item(L.rbNoHe)),
+      o2: () => (s.needs.o2 ? item(L.rbO2, s.o2) : item(L.rbNoO2)),
+    };
+    values.append(...s.gasOrder.map((gas) => gasItem[gas]()), s.needs.air ? item(L.rbAir, s.air) : item(L.rbNoAir));
   }
 
   // Show the result bar only while the result tiles are still below the screen
@@ -593,16 +804,22 @@
   function setGauge(r, fillP) {
     const pct = (p) => (r ? `${(p / fillP) * 100}%` : '0%');
     $('gaugeResidual').style.width = pct(r && r.keep);
+    $('gaugeHe').style.width = pct(r && r.he);
     $('gaugeO2').style.width = pct(r && r.o2);
     $('gaugeAir').style.width = pct(r && r.air);
   }
 
-  function markInvalid(err) {
+  function markInvalid(err, v) {
     document.querySelectorAll('.num-wrap').forEach((el) => el.classList.remove('invalid'));
+    // Only the fields that are actually wrong, not their valid neighbours
+    const outside = (keys, min, max) => keys.filter((k) => !(v[k] >= min && v[k] <= max));
     const map = {
-      errO2Range: ['curO2', 'tgtO2'],
+      errO2Range: outside(['curO2', 'tgtO2'], 21, 100),
+      errO2RangeTx: outside(['curO2', 'tgtO2'], 5, 100),
+      errHeRange: outside(['curHe', 'tgtHe'], 0, 95),
+      errMixSum: ['cur', 'tgt'].filter((m) => v[`${m}O2`] + v[`${m}He`] > 100).flatMap((m) => [`${m}O2`, `${m}He`]),
       errSize: ['size'],
-      errPressure: ['curP', 'fillP'],
+      errPressure: outside(['curP', 'fillP'], 0, 350),
       errFillLower: ['curP', 'fillP'],
       errTemp: ['tAmb'],
       errRate: ['rate'],
@@ -613,6 +830,7 @@
       if (wrap) wrap.classList.add('invalid');
     });
   }
+
 
   function drawCylinder(r, v) {
     const height = CYL.bottom - CYL.top;
@@ -632,7 +850,7 @@
     ticks.innerHTML = '';
 
     if (!r) {
-      ['layerResidual', 'layerO2', 'layerAir'].forEach((id) => {
+      ['layerResidual', 'layerHe', 'layerO2', 'layerAir'].forEach((id) => {
         $(id).setAttribute('y', CYL.bottom);
         $(id).setAttribute('height', 0);
       });
@@ -640,10 +858,12 @@
       return;
     }
 
-    const pO2 = r.keep + r.o2;
+    // Layers from the bottom in fill order
+    const step = Object.fromEntries(Blend.fillSteps(r).map((st) => [st.gas, st]));
     setLayer('layerResidual', 0, r.keep);
-    setLayer('layerO2', r.keep, pO2);
-    setLayer('layerAir', pO2, v.fillP);
+    setLayer('layerHe', step.he.from, step.he.to);
+    setLayer('layerO2', step.o2.from, step.o2.to);
+    setLayer('layerAir', step.air.from, v.fillP);
 
     if (r.drain) {
       const y = yOf(v.curP);
@@ -655,7 +875,7 @@
     }
 
     // Pressure ticks on the right side; skip ones that would overlap
-    const marks = [{ p: 0 }, { p: r.keep }, { p: pO2 }, { p: v.fillP }];
+    const marks = [{ p: 0 }, { p: r.keep }, { p: step.he.to }, { p: step.o2.to }, { p: v.fillP }];
     if (r.drain) marks.push({ p: v.curP, drain: true });
     const minGap = window.matchMedia('(max-width: 640px)').matches ? 26 : 14;
     const placed = [];
@@ -707,13 +927,14 @@
   }
 
   function evLabel(type, twoStepAir) {
+    if (type === 'he') return t('evHe');
     if (type === 'o2') return t('evO2');
     if (type === 'pause') return t('evPause');
     if (type === 'topUp') return t('evTopUp');
     return t(twoStepAir ? 'evAirFirst' : 'evAir');
   }
 
-  function renderThermo(th, v, r, needsO2, needsAir, tK) {
+  function renderThermo(th, v, r, needs, tK) {
     const sec = $('thermoSection');
     if (!th) {
       sec.hidden = true;
@@ -734,16 +955,23 @@
     $('kpiDrop').textContent = `−${fmt(Math.max(0, ok.fillEnd.p - ok.pc))} bar`;
     $('kpiCool').textContent = durText(th.coolSec);
 
-    const airHow = th.topUp ? L.naiveHowTopUp(fmt(v.fillP)) : L.naiveHowAir(fmt(v.fillP));
-    const how = [needsO2 && L.naiveHowO2(fmt(r.keep + r.o2)), needsAir && airHow]
-      .filter(Boolean)
-      .join(L.and);
-    // With the real-gas model, the mix after cooling follows from the cold stage pressures
-    const naiveO2End = naive.events.find((e) => e.type === 'o2');
-    const naiveMix = state.realGas
-      ? Blend.mixAfter(v.curO2 / 100, r.keep, naiveO2End ? naiveO2End.pc : r.keep, naive.pc, tK, v.size / 1000)
-      : naive.o2Fraction * 100;
-    $('naiveBox').innerHTML = L.naiveText(how, fmt(naive.pc), fmt(naiveMix), fmt(v.fillP), fmt(v.tgtO2));
+    // The steps in fill order with their cold targets
+    const how = { he: (p) => L.naiveHowHe(p), o2: (p) => L.naiveHowO2(p), air: () => (th.topUp ? L.naiveHowTopUp : L.naiveHowAir)(fmt(v.fillP)) };
+    const parts = Blend.fillSteps(r).filter((st) => needs[st.gas]).map((st) => how[st.gas](fmt(st.to)));
+    // "a and b", "a, b and c"
+    const howText = parts.length > 2 ? `${parts.slice(0, -1).join(', ')}${L.and}${parts[parts.length - 1]}` : parts.join(L.and);
+    // With the real-gas model, the mix after cooling follows from the cold pressures at the stage ends
+    const fills = naive.events.filter((e) => e.type === 'he' || e.type === 'o2');
+    let naiveMix = { o2: naive.o2Fraction * 100, he: naive.heFraction * 100 };
+    if (state.realGas && (v.curHe > 0 || v.tgtHe > 0)) {
+      const steps = [...fills.map((e) => ({ gas: e.type, to: e.pc })), { gas: 'air', to: naive.pc }];
+      naiveMix = Blend.mixAfterFill({ o2: v.curO2 / 100, he: v.curHe / 100 }, r.keep, steps, tK, v.size / 1000);
+    } else if (state.realGas) {
+      const pO2 = fills.length ? fills[fills.length - 1].pc : r.keep;
+      naiveMix = { o2: Blend.mixAfter(v.curO2 / 100, r.keep, pO2, naive.pc, tK, v.size / 1000), he: 0 };
+    }
+    const mixLabel = (o2, he) => (state.mode === 'trimix' ? L.mixTx(fmt(o2), fmt(he)) : `${fmt(o2)} % O₂`);
+    $('naiveBox').innerHTML = L.naiveText(howText, fmt(naive.pc), mixLabel(naiveMix.o2, naiveMix.he), fmt(v.fillP), mixLabel(v.tgtO2, v.tgtHe));
 
     // Show filling plus cooling until within 2 K of ambient (10–120 min after the fill)
     const coolEnd = ok.fillEnd.t + (th.coolSec ?? 120 * 60);
@@ -768,7 +996,7 @@
     ];
     // An air step that added nothing is not shown
     const shown = d.ok.events.filter((e) => !(d.skipFirstAir && e.type === 'air'));
-    const events = shown.map((e) => ({ t: e.t, label: evLabel(e.type, d.topUp) }));
+    const events = shown.map((e) => ({ t: e.t, label: evLabel(e.type, d.topUp), minor: e.type === 'pause' }));
     const inWin = (key) => [d.ok, d.naive].flatMap((sim) => sim.samples.filter((s) => s.t <= d.xMax).map((s) => s[key]));
 
     // Pressure
@@ -831,18 +1059,58 @@
     }
     out.push(`<text class="v-tick" x="${VIZ.l + iw + 18}" y="${h - 8}">min</text>`);
 
-    // Stage ends; labels go into one of two rows above the plot so none is dropped
-    const rowEnds = [-Infinity, -Infinity];
+    // Stage ends. Lines so close that one would run through the other's label share a
+    // label (a pause end then needs no name of its own). Labels go into two rows above
+    // the plot and never cover a line that runs up to the upper row; a label that finds
+    // no free spot is left out (the table and the tooltip still name every stage).
+    const groups = [];
+    const layout = (g) => {
+      const named = g.items.filter((it) => !it.minor);
+      g.label = (named.length ? named : g.items).map((it) => it.label).join(' · ');
+      g.half = g.label.length * 3.3 + 2;
+      g.lx = clamp((g.xs[0] + g.xs[g.xs.length - 1]) / 2, g.half, w - g.half);
+    };
     c.events.forEach((e) => {
       const ex = x(e.t);
-      const half = e.label.length * 3.3 + 2;
-      const lx = clamp(ex, half, w - half);
-      const row = rowEnds.findIndex((end) => lx - half > end + 6);
+      const prev = groups[groups.length - 1];
+      if (prev && (ex < prev.lx + prev.half + 3 || ex - (e.label.length * 3.3 + 2) < prev.xs[prev.xs.length - 1] + 3)) {
+        const merged = { xs: [...prev.xs, ex], items: [...prev.items, e] };
+        layout(merged);
+        if (merged.half * 2 <= w - 16) {
+          groups[groups.length - 1] = merged;
+          return;
+        }
+      }
+      const g = { xs: [ex], items: [e] };
+      layout(g);
+      groups.push(g);
+    });
+    const rowEnds = [-Infinity, -Infinity];
+    const lowerLabels = [];
+    const upperLines = [];
+    groups.forEach((g) => {
+      // Centred in the lower, then the upper row; otherwise moved right, still starting at its line
+      const moved = (row) => Math.max(g.lx, rowEnds[row] + 6.5 + g.half);
+      const spots = [[0, g.lx], [1, g.lx], [0, moved(0)], [1, moved(1)]];
+      const spot = spots.find(([row, lx]) => {
+        const x0 = lx - g.half;
+        const x1 = lx + g.half;
+        if (!(x0 > rowEnds[row] + 6) || x0 > g.xs[0] || x1 > w) return false;
+        return row === 0
+          ? !upperLines.some((ex) => ex > x0 - 2 && ex < x1 + 2)
+          : !lowerLabels.some(([a, b]) => g.xs.some((ex) => ex > a - 2 && ex < b + 2));
+      });
+      const row = spot ? spot[0] : -1;
       const ly = VIZ.t - 8 - Math.max(row, 0) * 14;
-      out.push(`<line class="v-event" x1="${n(ex)}" x2="${n(ex)}" y1="${row < 0 ? VIZ.t : ly + 4}" y2="${VIZ.t + ih}"/>`);
-      if (row < 0) return;
-      rowEnds[row] = lx + half;
-      out.push(`<text class="v-event-label" x="${n(lx)}" y="${ly}" text-anchor="middle">${esc(e.label)}</text>`);
+      g.xs.forEach((ex) => {
+        out.push(`<line class="v-event" x1="${n(ex)}" x2="${n(ex)}" y1="${row < 0 ? VIZ.t : ly + 4}" y2="${VIZ.t + ih}"/>`);
+      });
+      if (!spot) return;
+      const lx = spot[1];
+      rowEnds[row] = lx + g.half;
+      if (row === 0) lowerLabels.push([lx - g.half, lx + g.half]);
+      else upperLines.push(...g.xs);
+      out.push(`<text class="v-event-label" x="${n(lx)}" y="${ly}" text-anchor="middle">${esc(g.label)}</text>`);
     });
 
     // Reference line (target pressure / ambient temperature); its key sits in the caption
@@ -858,14 +1126,35 @@
       out.push(`<path class="v-line ${s.cls}" d="${path}L${n(x(c.xMax))} ${n(y(valueAt(s.samples, c.xMax, c.key)))}"/>`);
     });
 
-    // Selective direct labels on the highlighted series
-    c.marks.forEach((m) => {
-      const mx = x(m.t);
-      const my = y(m.v);
-      const ly = my - 12 < VIZ.t ? my + 20 : my - 12;
+    // Selective direct labels on the highlighted series. A label sits above its point;
+    // if it would cover a neighbour, it moves to the left or right of the point.
+    const dots = c.marks.map((m) => ({ x: x(m.t), y: y(m.v) }));
+    const taken = dots.map((d) => ({ x0: d.x - 5, x1: d.x + 5, y0: d.y - 5, y1: d.y + 5 }));
+    const free = (b) => !taken.some((o) => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+    const spots = [];
+    // Later points first: while filling they sit higher, so the earlier labels give way
+    for (let i = c.marks.length - 1; i >= 0; i--) {
+      const { x: mx, y: my } = dots[i];
+      const lw = c.marks[i].label.length * 7 + 2;
+      const cx = clamp(mx, VIZ.l + 22, VIZ.l + iw - 22);
+      const top = my - 12 < VIZ.t ? my + 20 : my - 12;
+      const options = [
+        { x: cx, y: top, anchor: 'middle', x0: cx - lw / 2 },
+        { x: mx - 8, y: my + 4, anchor: 'end', x0: mx - 8 - lw },
+        { x: mx + 8, y: my + 4, anchor: 'start', x0: mx + 8 },
+      ];
+      const spot = options.find((o, k) => {
+        const b = { x0: o.x0, x1: o.x0 + lw, y0: o.y - 10, y1: o.y + 3 };
+        return (k === 0 || (b.x0 >= VIZ.l && b.x1 <= VIZ.l + iw)) && free(b);
+      }) || options[0];
+      taken.push({ x0: spot.x0, x1: spot.x0 + lw, y0: spot.y - 10, y1: spot.y + 3 });
+      spots[i] = spot;
+    }
+    c.marks.forEach((m, i) => {
+      const s = spots[i];
       out.push(
-        `<circle class="v-dot s1" cx="${n(mx)}" cy="${n(my)}" r="4.5"/>`,
-        `<text class="v-label" x="${n(clamp(mx, VIZ.l + 22, VIZ.l + iw - 22))}" y="${n(ly)}" text-anchor="middle">${esc(m.label)}</text>`
+        `<circle class="v-dot s1" cx="${n(dots[i].x)}" cy="${n(dots[i].y)}" r="4.5"/>`,
+        `<text class="v-label" x="${n(s.x)}" y="${n(s.y)}" text-anchor="${s.anchor}">${esc(m.label)}</text>`
       );
     });
 
@@ -1081,6 +1370,15 @@
 
   // ---------- Inputs ----------
   function syncControls(skipId) {
+    const trimix = state.mode === 'trimix';
+    document.body.classList.toggle('mode-trimix', trimix);
+    applyTitle();
+    // Below 21 % O2 only in trimix (hypoxic mixes)
+    ['curO2', 'tgtO2'].forEach((k) => {
+      $(k).min = trimix ? 5 : 21;
+      const slider = document.querySelector(`.slider[data-for="${k}"]`);
+      if (slider) slider.min = trimix ? 5 : 21;
+    });
     FIELDS.forEach((k) => {
       const input = $(k);
       if (k !== skipId) input.value = state[k];
@@ -1098,10 +1396,40 @@
     TOGGLES.forEach((k) => ($(k).checked = !!state[k]));
     $('thermoBody').hidden = !state.thermoOn;
     $('airPauseField').hidden = !state.airTopUp;
+    const pressed = (b, on) => {
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-pressed', String(on));
+    };
+    document.querySelectorAll('.mode-switch button').forEach((b) => pressed(b, b.dataset.mode === state.mode));
+    document.querySelectorAll('#fillOrderSwitch button').forEach((b) => pressed(b, b.dataset.order === state.fillOrder));
+    placeInFillOrder(trimix && state.fillOrder === 'o2');
+    document.querySelectorAll('.mix-chips').forEach((group) => {
+      const o2 = parseFloat(state[`${group.dataset.mix}O2`]);
+      const he = parseFloat(state[`${group.dataset.mix}He`]);
+      group.querySelectorAll('button').forEach((b) => {
+        b.classList.toggle('active', parseFloat(b.dataset.o2) === o2 && parseFloat(b.dataset.he) === he);
+      });
+    });
     document.querySelectorAll('.material-picker button').forEach((b) => {
       const on = b.dataset.material === state.material;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  // Helium and O2 appear in fill order: target cards, amount tiles, gauge bar and legend.
+  // In the markup helium comes right before O2.
+  function placeInFillOrder(o2First) {
+    const pairs = [
+      [$('heroHe'), $('heroO2')],
+      [document.querySelector('.tile-he'), document.querySelector('.tile-o2')],
+      [$('gaugeHe'), $('gaugeO2')],
+      [document.querySelector('.legend .sw-he'), document.querySelector('.legend .sw-o2')].map((sw) => sw && sw.parentElement),
+    ];
+    pairs.forEach(([he, o2]) => {
+      if (!he || !o2 || !he.parentNode || he.parentNode !== o2.parentNode) return;
+      if (o2First) o2.after(he);
+      else o2.before(he);
     });
   }
 
@@ -1112,6 +1440,33 @@
     save();
   }
 
+  function setValues(values) {
+    Object.assign(state, values);
+    syncControls();
+    render();
+    save();
+  }
+
+  // Nitrox and trimix keep their own mixes: swap the shown ones with the stored ones
+  function switchMode(mode) {
+    if (mode === state.mode) return;
+    const shown = { curO2: state.curO2, curHe: state.curHe, tgtO2: state.tgtO2, tgtHe: state.tgtHe };
+    const restored = { ...state.otherMix };
+    if (mode === 'nitrox') {
+      restored.curHe = 0;
+      restored.tgtHe = 0;
+    }
+    setValues({ ...restored, otherMix: shown, mode });
+  }
+
+  // Trimix gets its own heading; nitrox keeps the original one
+  function applyTitle() {
+    const title = t(state.mode === 'trimix' ? 'titleTx' : 'title');
+    const heading = document.querySelector('h1[data-i18n="title"]');
+    if (heading) heading.textContent = title;
+    document.title = title;
+  }
+
   function applyLang() {
     const dict = I18N[state.lang];
     document.documentElement.lang = state.lang;
@@ -1119,13 +1474,14 @@
       const val = dict[el.dataset.i18n];
       if (typeof val === 'string') el.textContent = val;
     });
-    document.title = dict.title;
+    applyTitle();
     $('resultBar').title = dict.toResult;
     $('installBtn').title = dict.installApp;
     $('installBtn').setAttribute('aria-label', dict.installApp);
     $('installHint').innerHTML = dict.installHintIOS;
     $('cylinder').setAttribute('aria-label', dict.cylinderAria);
     document.querySelector('.material-picker').setAttribute('aria-label', dict.cylType);
+    document.querySelectorAll('.chips[data-for="bmPpO2"] button').forEach((b) => (b.textContent = fmt(parseFloat(b.dataset.value))));
     document.querySelectorAll('.lang-switch button').forEach((b) => {
       b.classList.toggle('active', b.dataset.lang === state.lang);
     });
@@ -1157,6 +1513,22 @@
         const btn = e.target.closest('button[data-value]');
         if (btn) setValue(group.dataset.for, btn.dataset.value);
       });
+    });
+    document.querySelectorAll('.mode-switch button').forEach((b) => {
+      b.addEventListener('click', () => switchMode(b.dataset.mode));
+    });
+    document.querySelectorAll('#fillOrderSwitch button').forEach((b) => {
+      b.addEventListener('click', () => setValue('fillOrder', b.dataset.order));
+    });
+    document.querySelectorAll('.mix-chips').forEach((group) => {
+      group.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-o2]');
+        if (btn) setValues({ [`${group.dataset.mix}O2`]: btn.dataset.o2, [`${group.dataset.mix}He`]: btn.dataset.he });
+      });
+    });
+    $('bestMixApply').addEventListener('click', () => {
+      const m = currentBestMix();
+      if (m) setValues({ tgtO2: String(m.o2), tgtHe: String(m.he) });
     });
     document.querySelector('.material-picker').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-material]');
