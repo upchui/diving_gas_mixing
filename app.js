@@ -140,6 +140,10 @@
       kpiCool: 'Abkühlzeit bis ±2 °C',
       withCorr: 'Mit Korrektur',
       withoutCorr: 'Ohne Korrektur',
+      corrInfoTitle: 'Was bedeuten die zwei Linien?',
+      corrInfoWith: 'So gefüllt, wie der Rechner es sagt: jeder Schritt bis zu seinem „warm ablesen“-Wert. Nach dem Abkühlen stimmen Druck und Gemisch.',
+      corrInfoWithout: 'Zum Vergleich: Jeder Schritt wird gestoppt, sobald das warme Manometer den kalten Zielwert zeigt. Nach dem Abkühlen fehlt Gas – Druck und Gemisch liegen daneben.',
+      corrInfoNote: 'Ohne Korrektur endet jeder Schritt früher, deshalb laufen die Linien nicht im Gleichschritt. Vergleiche die Endwerte rechts nach dem Abkühlen.',
       chartPressure: 'Manometerdruck (bar)',
       chartTemp: 'Gastemperatur (°C)',
       chartAria: 'Pfeiltasten bewegen den Cursor, alle Werte stehen auch in der Tabelle.',
@@ -308,6 +312,10 @@
       kpiCool: 'Cool-down to ±2 °C',
       withCorr: 'With correction',
       withoutCorr: 'Without correction',
+      corrInfoTitle: 'What do the two lines mean?',
+      corrInfoWith: 'Filled the way the calculator says: each step up to its “read warm” value. Once the cylinder has cooled, pressure and mix are right.',
+      corrInfoWithout: 'For comparison: each step stops as soon as the warm gauge shows the cold target. Once the cylinder has cooled, gas is missing – pressure and mix are off.',
+      corrInfoNote: 'Without correction every step ends earlier, so the lines do not run in step. Compare the end values on the right, after cooling.',
       chartPressure: 'Gauge pressure (bar)',
       chartTemp: 'Gas temperature (°C)',
       chartAria: 'Arrow keys move the cursor, all values are also in the table.',
@@ -1627,6 +1635,13 @@
     const phone = window.matchMedia('(max-width: 640px)');
     if (phone.addEventListener) phone.addEventListener('change', render);
     else if (phone.addListener) phone.addListener(render);
+    // The explanation of the two chart lines is the legend on desktop (its toggle is hidden
+    // there), so it must be open there; smaller screens start with it folded
+    const narrow = window.matchMedia('(max-width: 900px)');
+    const syncCorrInfo = () => ($('corrInfo').open = !narrow.matches);
+    syncCorrInfo();
+    if (narrow.addEventListener) narrow.addEventListener('change', syncCorrInfo);
+    else if (narrow.addListener) narrow.addListener(syncCorrInfo);
     if (typeof ResizeObserver !== 'undefined') {
       let frame = 0;
       new ResizeObserver(() => {

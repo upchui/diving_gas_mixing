@@ -445,6 +445,22 @@ h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 1.9rem); letter-spacing: -0.02em;
 .key-1 { background: var(--series-1); }
 .key-2 { background: var(--series-deemph); }
 
+/* What the two lines mean: folded below the legend on smaller screens; on desktop it
+   replaces the legend, with each line's explanation next to its colour */
+.corr-info { font-size: 0.85rem; color: var(--viz-ink-2); }
+.corr-info > summary { cursor: pointer; font-weight: 600; }
+.corr-info > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.corr-info dl { margin: 10px 0 0; }
+.corr-info dt { display: flex; align-items: center; gap: 8px; color: var(--viz-ink); font-weight: 600; }
+.corr-info dd { margin: 2px 0 8px 24px; line-height: 1.45; }
+.corr-info p { margin: 0; color: var(--viz-muted); font-size: 0.8rem; line-height: 1.45; }
+@media (min-width: 901px) {
+  .viz-legend, .corr-info > summary { display: none; }
+  .corr-info dl { margin: 0 0 6px; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; }
+  .corr-info dt { align-self: start; line-height: 1.45; }
+  .corr-info dd { margin: 0; }
+}
+
 .chart { margin: 0; border-radius: 8px; }
 .chart figcaption {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px;

@@ -600,6 +600,17 @@
           <span class="lk"><i class="key key-1"></i><span data-i18n="withCorr">Mit Korrektur</span></span>
           <span class="lk"><i class="key key-2"></i><span data-i18n="withoutCorr">Ohne Korrektur</span></span>
         </div>
+        <!-- What the two lines mean: the legend itself on desktop, folded below it on smaller screens -->
+        <details id="corrInfo" class="corr-info">
+          <summary data-i18n="corrInfoTitle">Was bedeuten die zwei Linien?</summary>
+          <dl>
+            <dt><i class="key key-1"></i><span data-i18n="withCorr">Mit Korrektur</span></dt>
+            <dd data-i18n="corrInfoWith">So gefüllt, wie der Rechner es sagt: jeder Schritt bis zu seinem „warm ablesen“-Wert. Nach dem Abkühlen stimmen Druck und Gemisch.</dd>
+            <dt><i class="key key-2"></i><span data-i18n="withoutCorr">Ohne Korrektur</span></dt>
+            <dd data-i18n="corrInfoWithout">Zum Vergleich: Jeder Schritt wird gestoppt, sobald das warme Manometer den kalten Zielwert zeigt. Nach dem Abkühlen fehlt Gas – Druck und Gemisch liegen daneben.</dd>
+          </dl>
+          <p data-i18n="corrInfoNote">Ohne Korrektur endet jeder Schritt früher, deshalb laufen die Linien nicht im Gleichschritt. Vergleiche die Endwerte rechts nach dem Abkühlen.</p>
+        </details>
 
         <figure class="chart" id="chartP" tabindex="0">
           <figcaption><span data-i18n="chartPressure">Manometerdruck (bar)</span><span class="ref-key"><i class="key key-ref"></i><span id="refP"></span></span></figcaption>
