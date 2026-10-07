@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Gas blending for diving - ALHU",
   "short_name": "Gas blending for diving - ALHU",
-  "description": "Nitrox top-up calculator: O₂ and air gauge targets for partial pressure blending, with real-gas and heating correction. Works offline.",
+  "description": "Nitrox and trimix top-up calculator: helium, O₂ and air gauge targets for partial pressure blending, with real-gas and heating correction. Works offline.",
   "lang": "en",
   "start_url": "./",
   "scope": "./",

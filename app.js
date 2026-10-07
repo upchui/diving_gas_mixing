@@ -75,6 +75,7 @@
       drainHelium: (keep, cur) => `Zu viel Helium in der Flasche für das Zielgemisch. Flasche erst von <strong>${cur} bar</strong> auf <strong>${keep} bar</strong> ablassen.`,
       unreachable: 'Dieses Gemisch lässt sich mit Luft als Auffüllgas nicht mischen: Es hat zu wenig Sauerstoff im Verhältnis zum Stickstoff. Mehr Helium wählen.',
       hypoxic: (d) => `Hypoxisches Gemisch: nicht an der Oberfläche atmen. Mindesttiefe ${d} m (ppO₂ 0,18).`,
+      approx: (mix) => `Das Zielgemisch ist nicht genau erreichbar: Auch eine leere oder abgelassene Flasche enthält noch 1 atm Gas. Erreichbar sind ca. <strong>${mix}</strong>.`,
       minDepth: 'Mindesttiefe (ppO₂ 0,18)',
       endLabel: (pp) => `END bei MOD ${pp}`,
       densityLabel: (pp) => `Gasdichte bei MOD ${pp}`,
@@ -243,6 +244,7 @@
       drainHelium: (keep, cur) => `Too much helium in the cylinder for the requested mix. Bleed the cylinder from <strong>${cur} bar</strong> down to <strong>${keep} bar</strong> first.`,
       unreachable: 'This mix cannot be made with air as the top-up gas: it has too little oxygen compared to nitrogen. Choose more helium.',
       hypoxic: (d) => `Hypoxic mix: do not breathe it at the surface. Minimum depth ${d} m (ppO₂ 0.18).`,
+      approx: (mix) => `The requested mix cannot be reached exactly: even an empty or bled cylinder still holds 1 atm of gas. You will get about <strong>${mix}</strong>.`,
       minDepth: 'Minimum depth (ppO₂ 0.18)',
       endLabel: (pp) => `END at MOD ${pp}`,
       densityLabel: (pp) => `Gas density at MOD ${pp}`,
@@ -368,18 +370,26 @@
   function load() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+      if (!saved || typeof saved !== 'object') return;
+      // Own keys only: a stored "toString" or "constructor" must not count as a language or material
+      const own = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
       for (const k of Object.keys(DEFAULTS)) {
         // The real-gas correction and the thermal model always start switched on
         if (k === 'realGas' || k === 'thermoOn') continue;
         // Keep a saved language only if the user picked it; otherwise follow the device
         if (k === 'lang' && !saved.langChosen) continue;
-        if (k in saved) state[k] = saved[k];
+        if (own(saved, k)) state[k] = saved[k];
       }
-      if (!(state.lang in I18N)) state.lang = DEFAULTS.lang;
-      if (!(state.material in MAT_LABEL)) state.material = DEFAULTS.material;
+      if (!own(I18N, state.lang)) state.lang = DEFAULTS.lang;
+      if (!own(MAT_LABEL, state.material)) state.material = DEFAULTS.material;
       if (state.mode !== 'trimix') state.mode = 'nitrox';
       if (state.fillOrder !== 'o2') state.fillOrder = 'he';
-      if (!state.otherMix || typeof state.otherMix !== 'object') state.otherMix = { ...DEFAULTS.otherMix };
+      // Only the four mix fields, whatever else a stored object holds
+      const other = state.otherMix && typeof state.otherMix === 'object' ? state.otherMix : {};
+      state.otherMix = Object.fromEntries(Object.keys(DEFAULTS.otherMix).map((k) => {
+        const ok = own(other, k) && (typeof other[k] === 'string' || typeof other[k] === 'number');
+        return [k, ok ? other[k] : DEFAULTS.otherMix[k]];
+      }));
     } catch (_) { /* storage unavailable */ }
   }
   function save() {
@@ -459,8 +469,9 @@
     const ok = run('gas');
     const naive = run('gauge');
     const event = (type, stage) => ok.events.find((e) => e.type === type && (stage == null || e.stage === stage));
-    // Seconds after the end of filling until the gas is within 2 K of ambient
-    const cooled = ok.samples.find((s) => s.t > ok.fillEnd.t && s.tC - v.tAmb < 2);
+    // Seconds after the end of filling until the gas is within 2 K of ambient (0 when it
+    // already is, e.g. a small fill or a water bath)
+    const cooled = ok.samples.find((s) => s.t >= ok.fillEnd.t && s.tC - v.tAmb < 2);
     // The warm gauge can already be above the target before the air; then the first
     // fill adds nothing and the procedure is just: cool down, then fill
     let skipFirstAir = false;
@@ -523,8 +534,15 @@
     const errBox = $('error');
     errBox.textContent = message;
     errBox.hidden = false;
-    ['drainAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'warmBadgeHe', 'heroCold', 'airCold', 'heCold', 'heroIdeal',
-      'heIdeal', 'airTopUpRow', 'hypoxicAlert'].forEach((id) => ($(id).hidden = true));
+    ['drainAlert', 'approxAlert', 'drainBadge', 'warmBadge', 'warmBadgeAir', 'warmBadgeHe', 'heroCold', 'airCold', 'heCold',
+      'heroIdeal', 'heIdeal', 'airTopUpRow', 'hypoxicAlert', 'heroNone', 'factMinDepthBox'].forEach((id) => ($(id).hidden = true));
+    // The cards show their empty state, not what the last result said
+    ['heroSub', 'heroValue', 'heroHeValue', 'heroAirValue'].forEach((id) => ($(id).hidden = false));
+    ['heroHe', 'heroO2', 'heroAir'].forEach((id) => $(id).classList.remove('dim'));
+    $('factDensityBox').classList.remove('warn', 'danger');
+    $('heroHeLabel').textContent = L.fillHeTo;
+    $('heroAirLabel').textContent = L.thenAirTo;
+    $('o2DeltaLabel').textContent = L.barPureO2;
     $('resultTiles').classList.add('dim');
     document.querySelector('.hero').classList.add('dim');
     ['o2Bar', 'airBar', 'heBar', 'o2L', 'airL', 'heL', 'factMix', 'factTotal', 'factMod14', 'factMod16', 'factEnd',
@@ -557,8 +575,12 @@
     $('heTileLabel').textContent = state.thermoOn ? L.addHeCooled : L.addHe;
     $('o2TileLabel').textContent = state.thermoOn ? L.addO2Cooled : L.addO2;
     $('airTileLabel').textContent = state.thermoOn ? L.addAirCooled : L.addAir;
-    // No negative nitrogen while O2 + He is over 100 %
-    const n2Rest = (o2, he) => L.n2Rest(100 - o2 - he >= 0 ? num(100 - o2 - he) : '–');
+    // No negative nitrogen while O2 + He is over 100 %; rounding removes floating point
+    // dust such as 100 − 64.4 − 35.6 = −7e‑15
+    const n2Rest = (o2, he) => {
+      const n2 = Math.round((100 - o2 - he) * 1e6) / 1e6;
+      return L.n2Rest(n2 >= 0 ? num(Math.max(0, n2)) : '–');
+    };
     $('curN2').textContent = n2Rest(v.curO2, v.curHe);
     $('tgtN2').textContent = n2Rest(v.tgtO2, v.tgtHe);
     $('settingsSummary').textContent = [
@@ -592,6 +614,15 @@
     $('resultTiles').classList.remove('dim');
     document.querySelector('.hero').classList.remove('dim');
 
+    // 1 atm stays in an empty or bled cylinder, so the requested mix may only be nearly
+    // reached; then everything about the gas in the cylinder uses the mix actually reached
+    const approx = Math.abs(r.finalO2 - v.tgtO2) > 0.05 || Math.abs(r.finalHe - v.tgtHe) > 0.05;
+    const mix = approx ? { o2: r.finalO2, he: r.finalHe } : { o2: v.tgtO2, he: v.tgtHe };
+    const mixLabel = (o2, he) => (trimix ? L.mixTx(fmt(o2), fmt(he)) : `${fmt(o2)} % O₂`);
+    const mixText = mixLabel(mix.o2, mix.he);
+    $('approxAlert').hidden = !approx;
+    if (approx) $('approxAlert').innerHTML = L.approx(mixText);
+
     const needs = { he: r.he > 0.05, o2: r.o2 > 0.05, air: r.air > 0.05 };
     // Cold gauge readings before and after each step, in fill order
     const fill = Blend.fillSteps(r);
@@ -600,7 +631,8 @@
     const afterO2 = step.o2.to;
     // Helium (trimix only) and O2 in fill order
     const gasOrder = fill.map((st) => st.gas).filter((gas) => gas === 'o2' || (gas === 'he' && trimix));
-    const th = state.thermoOn ? runThermo(v, r, needs) : null;
+    // No thermal model when nothing is filled (e.g. 50 -> 50.01 bar)
+    const th = state.thermoOn && (needs.he || needs.o2 || needs.air) ? runThermo(v, r, needs) : null;
     // Gauge readings to fill to: warm values when the thermal model is on
     const gaugeHe = th && needs.he ? th.event('he').p : afterHe;
     const gaugeO2 = th && needs.o2 ? th.event('o2').p : afterO2;
@@ -687,7 +719,6 @@
     }
 
     // Steps
-    const mixText = trimix ? L.mixTx(fmt(v.tgtO2), fmt(v.tgtHe)) : `${fmt(v.tgtO2)} % O₂`;
     const steps = [];
     if (r.drain) steps.push(['s-drain', L.stepDrain(fmt(r.keep))]);
     if (th) {
@@ -722,13 +753,13 @@
     $('steps').innerHTML = steps.map(([cls, html]) => `<li class="${cls}"><span>${html}</span></li>`).join('');
 
     // Facts
-    const f2 = v.tgtO2 / 100;
-    const fHe = v.tgtHe / 100;
-    $('factMix').textContent = trimix ? L.mixTx(fmt(r.finalO2), fmt(r.finalHe)) : `${fmt(r.finalO2)} % O₂`;
+    const f2 = mix.o2 / 100;
+    const fHe = mix.he / 100;
+    $('factMix').textContent = mixLabel(r.finalO2, r.finalHe);
     $('factTotal').textContent = `${fmtInt(r.litersTotal ?? v.fillP * v.size)} L`;
     $('factMod14').textContent = `${fmt((1.4 / f2 - 1) * 10)} m`;
     $('factMod16').textContent = `${fmt((1.6 / f2 - 1) * 10)} m`;
-    const hypoxic = trimix && v.tgtO2 < 18;
+    const hypoxic = trimix && mix.o2 < 18;
     $('hypoxicAlert').hidden = !hypoxic;
     $('factMinDepthBox').hidden = !hypoxic;
     if (trimix) {
@@ -744,10 +775,13 @@
 
     drawCylinder(r, v);
     updateResultBar({
+      // Warnings screen readers must hear too: hypoxic mix, target only nearly reachable
+      notes: ['hypoxicAlert', 'approxAlert'].filter((id) => !$(id).hidden).map((id) => $(id).textContent.replace(/\.$/, '')),
       drain: r.drain ? fmt(r.keep) : null, gasOrder, needs, he: fmt(gaugeHe), o2: fmt(gaugeO2),
-      air: topUp && !skipFirst ? `${fmt(v.fillP)} → ${fmt(gaugeEnd)}` : fmt(gaugeEnd), warm: !!th,
+      // On narrow phones the two-step value may wrap after the arrow, nowhere else
+      air: topUp && !skipFirst ? `${fmt(v.fillP)}\u00a0→ ${fmt(gaugeEnd)}` : fmt(gaugeEnd), warm: !!th,
     });
-    renderThermo(th, v, r, needs, tK);
+    renderThermo(th, v, r, needs, tK, mixText);
   }
 
   // Phones: compact summary of the gauge targets, pinned to the bottom of the screen
@@ -764,19 +798,23 @@
       msg.className = 'rb-error';
       msg.textContent = s.error;
       values.append(msg);
+      announce(s.error);
       return;
     }
+    // The same targets as one sentence for screen readers
+    const spoken = [...(s.notes || []), ...(s.drain ? [L.drainFirst(s.drain)] : [])];
     const item = (label, value) => {
+      spoken.push(value != null ? `${label} ${value} bar` : label);
       const el = document.createElement('span');
       el.className = 'rb-item';
       const lab = document.createElement('span');
       lab.className = 'rb-label';
-      lab.textContent = label;
+      lab.textContent = label.replace(/ /g, '\u00a0');
       el.append(lab);
       if (value != null) {
         const strong = document.createElement('strong');
         strong.textContent = value;
-        el.append(' ', strong, ' bar');
+        el.append('\u00a0', strong, '\u00a0bar');
       }
       return el;
     };
@@ -785,6 +823,25 @@
       o2: () => (s.needs.o2 ? item(L.rbO2, s.o2) : item(L.rbNoO2)),
     };
     values.append(...s.gasOrder.map((gas) => gasItem[gas]()), s.needs.air ? item(L.rbAir, s.air) : item(L.rbNoAir));
+    if (s.warm) spoken.push(L.warmRead);
+    announce(spoken.join(', '));
+  }
+
+  // Screen readers hear the result once the inputs settle, not on every keystroke,
+  // and not at all on page load
+  let liveTimer = 0;
+  let liveText = null;
+  function announce(text) {
+    clearTimeout(liveTimer);
+    if (liveText === null) {
+      liveText = text;
+      return;
+    }
+    liveTimer = setTimeout(() => {
+      if (text === liveText) return;
+      liveText = text;
+      $('liveSummary').textContent = text;
+    }, 1000);
   }
 
   // Show the result bar only while the result tiles are still below the screen
@@ -798,6 +855,8 @@
     new IntersectionObserver(([entry]) => {
       const below = !entry.isIntersecting && entry.boundingClientRect.top > 0;
       bar.classList.toggle('away', !below);
+      // Out of the tab order and away from screen readers while it is hidden
+      bar.inert = !below;
     }, { rootMargin: '0px 0px -72px 0px' }).observe(document.querySelector('.hero'));
   }
 
@@ -811,6 +870,7 @@
 
   function markInvalid(err, v) {
     document.querySelectorAll('.num-wrap').forEach((el) => el.classList.remove('invalid'));
+    document.querySelectorAll('.num-wrap input').forEach((el) => el.removeAttribute('aria-invalid'));
     // Only the fields that are actually wrong, not their valid neighbours
     const outside = (keys, min, max) => keys.filter((k) => !(v[k] >= min && v[k] <= max));
     const map = {
@@ -828,6 +888,7 @@
     (map[err] || []).forEach((id) => {
       const wrap = $(id).closest('.num-wrap');
       if (wrap) wrap.classList.add('invalid');
+      $(id).setAttribute('aria-invalid', 'true');
     });
   }
 
@@ -934,7 +995,7 @@
     return t(twoStepAir ? 'evAirFirst' : 'evAir');
   }
 
-  function renderThermo(th, v, r, needs, tK) {
+  function renderThermo(th, v, r, needs, tK, targetText) {
     const sec = $('thermoSection');
     if (!th) {
       sec.hidden = true;
@@ -971,7 +1032,7 @@
       naiveMix = { o2: Blend.mixAfter(v.curO2 / 100, r.keep, pO2, naive.pc, tK, v.size / 1000), he: 0 };
     }
     const mixLabel = (o2, he) => (state.mode === 'trimix' ? L.mixTx(fmt(o2), fmt(he)) : `${fmt(o2)} % O₂`);
-    $('naiveBox').innerHTML = L.naiveText(howText, fmt(naive.pc), mixLabel(naiveMix.o2, naiveMix.he), fmt(v.fillP), mixLabel(v.tgtO2, v.tgtHe));
+    $('naiveBox').innerHTML = L.naiveText(howText, fmt(naive.pc), mixLabel(naiveMix.o2, naiveMix.he), fmt(v.fillP), targetText);
 
     // Show filling plus cooling until within 2 K of ambient (10–120 min after the fill)
     const coolEnd = ok.fillEnd.t + (th.coolSec ?? 120 * 60);
@@ -986,6 +1047,12 @@
     buildTable();
   }
 
+  // Events worth showing: no first air fill that added nothing, and no pause shorter than
+  // a minute (the gas was already cool; the step list leaves it out too)
+  function shownEvents(d) {
+    return d.ok.events.filter((e, i, all) => !(d.skipFirstAir && e.type === 'air') && !(e.type === 'pause' && i > 0 && e.t - all[i - 1].t < 60));
+  }
+
   function drawThermoCharts() {
     const d = thermoData;
     if (!d || $('thermoSection').hidden) return;
@@ -994,8 +1061,7 @@
       { cls: 's2', samples: d.naive.samples },
       { cls: 's1', samples: d.ok.samples },
     ];
-    // An air step that added nothing is not shown
-    const shown = d.ok.events.filter((e) => !(d.skipFirstAir && e.type === 'air'));
+    const shown = shownEvents(d);
     const events = shown.map((e) => ({ t: e.t, label: evLabel(e.type, d.topUp), minor: e.type === 'pause' }));
     const inWin = (key) => [d.ok, d.naive].flatMap((sim) => sim.samples.filter((s) => s.t <= d.xMax).map((s) => s[key]));
 
@@ -1045,7 +1111,8 @@
     const out = [];
 
     // Grid + y ticks
-    const yDigits = Number.isInteger(step) ? 0 : 1;
+    // As many decimals as the step has: 0.25 bar steps read 199.25, not 199.3
+    const yDigits = Math.min(3, (String(+step.toFixed(6)).split('.')[1] || '').length);
     for (let g = y0; g <= y1 + 1e-9; g += step) {
       out.push(
         `<line class="${Math.abs(g - y0) < 1e-9 ? 'v-axis' : 'v-grid'}" x1="${VIZ.l}" x2="${VIZ.l + iw}" y1="${n(y(g))}" y2="${n(y(g))}"/>`,
@@ -1302,9 +1369,7 @@
       });
 
     const rows = new Map([[0, L.evStart]]);
-    d.ok.events
-      .filter((e) => !(d.skipFirstAir && e.type === 'air'))
-      .forEach((e) => rows.set(e.t, evLabel(e.type, d.topUp)));
+    shownEvents(d).forEach((e) => rows.set(e.t, evLabel(e.type, d.topUp)));
     for (let time = 600; time < d.xMax; time += 600) if (!rows.has(time)) rows.set(time, '');
 
     const body = table.createTBody();
@@ -1383,14 +1448,17 @@
       const input = $(k);
       if (k !== skipId) input.value = state[k];
       const slider = document.querySelector(`.slider[data-for="${k}"]`);
-      if (slider) {
+      // An empty or invalid field leaves its slider where it was
+      if (slider && Number.isFinite(parseFloat(state[k]))) {
         slider.value = state[k];
         const min = +slider.min, max = +slider.max;
         const pct = ((Math.min(max, Math.max(min, +state[k])) - min) / (max - min)) * 100;
         slider.style.setProperty('--p', `${pct}%`);
       }
       document.querySelectorAll(`.chips[data-for="${k}"] button`).forEach((b) => {
-        b.classList.toggle('active', parseFloat(b.dataset.value) === parseFloat(state[k]));
+        const on = parseFloat(b.dataset.value) === parseFloat(state[k]);
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
       });
     });
     TOGGLES.forEach((k) => ($(k).checked = !!state[k]));
@@ -1407,7 +1475,9 @@
       const o2 = parseFloat(state[`${group.dataset.mix}O2`]);
       const he = parseFloat(state[`${group.dataset.mix}He`]);
       group.querySelectorAll('button').forEach((b) => {
-        b.classList.toggle('active', parseFloat(b.dataset.o2) === o2 && parseFloat(b.dataset.he) === he);
+        const on = parseFloat(b.dataset.o2) === o2 && parseFloat(b.dataset.he) === he;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', String(on));
       });
     });
     document.querySelectorAll('.material-picker button').forEach((b) => {
@@ -1428,8 +1498,12 @@
     ];
     pairs.forEach(([he, o2]) => {
       if (!he || !o2 || !he.parentNode || he.parentNode !== o2.parentNode) return;
-      if (o2First) o2.after(he);
-      else o2.before(he);
+      // Moving a node restarts its CSS transitions: only move when the order is wrong
+      if (o2First) {
+        if (o2.nextElementSibling !== he) o2.after(he);
+      } else if (he.nextElementSibling !== o2) {
+        o2.before(he);
+      }
     });
   }
 
@@ -1484,6 +1558,7 @@
     document.querySelectorAll('.chips[data-for="bmPpO2"] button').forEach((b) => (b.textContent = fmt(parseFloat(b.dataset.value))));
     document.querySelectorAll('.lang-switch button').forEach((b) => {
       b.classList.toggle('active', b.dataset.lang === state.lang);
+      b.setAttribute('aria-pressed', String(b.dataset.lang === state.lang));
     });
   }
 
@@ -1548,6 +1623,10 @@
       if (hoverT != null && !e.target.closest('.chart')) setHover(null);
     });
     watchResultBar();
+    // The cylinder ticks are spaced for the phone layout: redraw when it switches
+    const phone = window.matchMedia('(max-width: 640px)');
+    if (phone.addEventListener) phone.addEventListener('change', render);
+    else if (phone.addListener) phone.addListener(render);
     if (typeof ResizeObserver !== 'undefined') {
       let frame = 0;
       new ResizeObserver(() => {

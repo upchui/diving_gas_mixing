@@ -66,15 +66,15 @@
       <div class="card">
         <div class="card-head">
           <span class="dot dot-current"></span>
-          <h3 data-i18n="currentMix">Aktuelles Gemisch</h3>
+          <h3 id="curMixHead" data-i18n="currentMix">Aktuelles Gemisch</h3>
         </div>
         <div class="field">
-          <label for="curO2" data-i18n="oxygen">Sauerstoff</label>
+          <label for="curO2" id="curO2Label" data-i18n="oxygen">Sauerstoff</label>
           <div class="num-wrap">
             <input type="number" id="curO2" min="21" max="100" step="0.5" inputmode="decimal">
             <span class="unit">% O₂</span>
           </div>
-          <input type="range" class="slider" data-for="curO2" min="21" max="100" step="0.5">
+          <input type="range" class="slider" data-for="curO2" min="21" max="100" step="0.5" aria-labelledby="curMixHead curO2Label">
           <div class="chips nitrox-only" data-for="curO2">
             <button type="button" data-value="21" data-i18n="air">Luft</button>
             <button type="button" data-value="28">EAN28</button>
@@ -90,12 +90,12 @@
           </div>
         </div>
         <div class="field trimix-only">
-          <label for="curHe" data-i18n="helium">Helium</label>
+          <label for="curHe" id="curHeLabel" data-i18n="helium">Helium</label>
           <div class="num-wrap">
             <input type="number" id="curHe" min="0" max="95" step="1" inputmode="decimal">
             <span class="unit">% He</span>
           </div>
-          <input type="range" class="slider" data-for="curHe" min="0" max="95" step="1">
+          <input type="range" class="slider" data-for="curHe" min="0" max="95" step="1" aria-labelledby="curMixHead curHeLabel">
           <p class="mix-n2" id="curN2"></p>
         </div>
       </div>
@@ -103,15 +103,15 @@
       <div class="card">
         <div class="card-head">
           <span class="dot dot-target"></span>
-          <h3 data-i18n="targetMix">Gewünschtes Gemisch</h3>
+          <h3 id="tgtMixHead" data-i18n="targetMix">Gewünschtes Gemisch</h3>
         </div>
         <div class="field">
-          <label for="tgtO2" data-i18n="oxygen">Sauerstoff</label>
+          <label for="tgtO2" id="tgtO2Label" data-i18n="oxygen">Sauerstoff</label>
           <div class="num-wrap">
             <input type="number" id="tgtO2" min="21" max="100" step="0.5" inputmode="decimal">
             <span class="unit">% O₂</span>
           </div>
-          <input type="range" class="slider" data-for="tgtO2" min="21" max="100" step="0.5">
+          <input type="range" class="slider" data-for="tgtO2" min="21" max="100" step="0.5" aria-labelledby="tgtMixHead tgtO2Label">
           <div class="chips nitrox-only" data-for="tgtO2">
             <button type="button" data-value="28">EAN28</button>
             <button type="button" data-value="32">EAN32</button>
@@ -128,12 +128,12 @@
           </div>
         </div>
         <div class="field trimix-only">
-          <label for="tgtHe" data-i18n="helium">Helium</label>
+          <label for="tgtHe" id="tgtHeLabel" data-i18n="helium">Helium</label>
           <div class="num-wrap">
             <input type="number" id="tgtHe" min="0" max="95" step="1" inputmode="decimal">
             <span class="unit">% He</span>
           </div>
-          <input type="range" class="slider" data-for="tgtHe" min="0" max="95" step="1">
+          <input type="range" class="slider" data-for="tgtHe" min="0" max="95" step="1" aria-labelledby="tgtMixHead tgtHeLabel">
           <p class="mix-n2" id="tgtN2"></p>
         </div>
       </div>
@@ -213,12 +213,12 @@
           </div>
         </div>
         <div class="field">
-          <label for="curP" data-i18n="curPressure">Aktueller Druck</label>
+          <label for="curP" id="curPLabel" data-i18n="curPressure">Aktueller Druck</label>
           <div class="num-wrap">
             <input type="number" id="curP" min="0" max="350" step="1" inputmode="decimal">
             <span class="unit">bar</span>
           </div>
-          <input type="range" class="slider" data-for="curP" min="0" max="350" step="1">
+          <input type="range" class="slider" data-for="curP" min="0" max="350" step="1" aria-labelledby="curPLabel">
           <div class="chips" data-for="curP">
             <button type="button" data-value="0">0</button>
             <button type="button" data-value="30">30</button>
@@ -227,12 +227,12 @@
           </div>
         </div>
         <div class="field">
-          <label for="fillP" data-i18n="fillPressure">Fülldruck</label>
+          <label for="fillP" id="fillPLabel" data-i18n="fillPressure">Fülldruck</label>
           <div class="num-wrap">
             <input type="number" id="fillP" min="1" max="350" step="1" inputmode="decimal">
             <span class="unit">bar</span>
           </div>
-          <input type="range" class="slider" data-for="fillP" min="1" max="350" step="1">
+          <input type="range" class="slider" data-for="fillP" min="1" max="350" step="1" aria-labelledby="fillPLabel">
           <div class="chips" data-for="fillP">
             <button type="button" data-value="200">200</button>
             <button type="button" data-value="220">220</button>
@@ -307,12 +307,12 @@
             </summary>
 
           <div class="field">
-            <label for="tAmb" data-i18n="ambientTemp">Umgebungstemperatur</label>
+            <label for="tAmb" id="tAmbLabel" data-i18n="ambientTemp">Umgebungstemperatur</label>
             <div class="num-wrap">
-              <input type="number" id="tAmb" min="-10" max="45" step="1" inputmode="decimal">
+              <input type="number" id="tAmb" min="-10" max="45" step="1">
               <span class="unit">°C</span>
             </div>
-            <input type="range" class="slider" data-for="tAmb" min="-5" max="40" step="1">
+            <input type="range" class="slider" data-for="tAmb" min="-10" max="45" step="1" aria-labelledby="tAmbLabel">
             <div class="chips" data-for="tAmb">
               <button type="button" data-value="10">10 °C</button>
               <button type="button" data-value="15">15 °C</button>
@@ -377,11 +377,13 @@
     </section>
 
     <!-- Ergebnis -->
-    <section class="results" aria-live="polite">
+    <section class="results">
+      <p id="liveSummary" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
       <div class="card result-card">
         <div class="hero">
           <div id="error" class="alert alert-error" hidden></div>
           <div id="drainAlert" class="alert alert-warn" hidden></div>
+          <div id="approxAlert" class="alert alert-warn" hidden></div>
           <div id="hypoxicAlert" class="alert alert-warn" hidden></div>
 
           <div id="heroHe" class="hero-he trimix-only">
@@ -419,7 +421,7 @@
             <div id="heroSub" class="hero-sub">
               <span data-i18n="gaugeFrom">Manometer: von</span>
               <strong id="o2From">–</strong> → <strong id="o2TargetSub">–</strong> bar
-              · <strong id="o2Delta">–</strong> <span id="o2DeltaLabel">bar reiner O₂</span>
+              · <strong id="o2Delta">–</strong> <span id="o2DeltaLabel" data-i18n="barPureO2">bar reiner O₂</span>
             </div>
             <div id="heroCold" class="hero-cold" hidden>
               <span id="o2Heat" class="heat-delta"></span>
@@ -438,7 +440,7 @@
           <div id="heroAir" class="hero-air">
             <div class="hero-air-text">
               <span class="hero-air-head">
-                <span id="heroAirLabel" class="hero-label">Dann mit Luft auffüllen bis</span>
+                <span id="heroAirLabel" class="hero-label" data-i18n="thenAirTo">Dann mit Luft auffüllen bis</span>
                 <span id="warmBadgeAir" class="badge-warm" hidden>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
                   <span data-i18n="warmRead">warm ablesen</span>
@@ -623,7 +625,7 @@
     <p data-i18n="disclaimer">Rechenhilfe nach der Partialdruck-Methode (Luft = 21 % O₂). Ersetzt keine Ausbildung als Gasblender – Gemisch nach dem Füllen immer analysieren, bei Trimix O₂ und He.</p>
   </footer>
 
-  <button type="button" id="resultBar" class="result-bar away">
+  <button type="button" id="resultBar" class="result-bar away" inert>
     <span class="rb-main">
       <span id="rbDrain" class="rb-drain" hidden></span>
       <span id="rbValues" class="rb-values"></span>
@@ -635,8 +637,10 @@
     <svg class="rb-arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
   </button>
 
-  <script src="blend.js"></script>
-  <script src="thermo.js"></script>
-  <script src="app.js"></script>
+  <!-- data-cfasync="false": Cloudflare's Rocket Loader must leave the scripts alone,
+       otherwise they only run through its loader, which is not stored for offline use -->
+  <script data-cfasync="false" src="blend.js"></script>
+  <script data-cfasync="false" src="thermo.js"></script>
+  <script data-cfasync="false" src="app.js"></script>
 </body>
 </html>

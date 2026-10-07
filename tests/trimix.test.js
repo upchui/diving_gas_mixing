@@ -114,7 +114,8 @@ test('oxygen first (real gas): the same final mix, but other gauge targets', () 
 });
 
 test('grid: every trimix result is finite and consistent', () => {
-  const mixes = [[21, 0], [32, 0], [21, 35], [18, 45], [15, 55], [10, 70], [25, 25], [50, 0], [100, 0]];
+  // Includes hypoxic mixes without helium (18/0, 10/0), which the nitrox formulas cannot handle
+  const mixes = [[21, 0], [32, 0], [21, 35], [18, 45], [15, 55], [10, 70], [25, 25], [50, 0], [100, 0], [18, 0], [10, 0]];
   let checked = 0;
   for (const [curO2, curHe] of mixes) {
     for (const [tgtO2, tgtHe] of mixes) {
@@ -123,18 +124,24 @@ test('grid: every trimix result is finite and consistent', () => {
           for (const order of ['he', 'o2']) {
             for (const T of [263.15, T20, 318.15]) {
               const v = { curO2, curHe, tgtO2, tgtHe, curP, fillP, size: 12, order };
-              for (const r of [Blend.ideal(v), Blend.real(v, T)]) {
+              for (const [method, r] of [['ideal', Blend.ideal(v)], ['real', Blend.real(v, T)]]) {
+                const at = `${method} ${JSON.stringify(v)}`;
                 checked++;
                 for (const [k, val] of Object.entries(r)) {
-                  if (!['drain', 'unreachable', 'order'].includes(k)) assert.ok(Number.isFinite(val), `${k} ${JSON.stringify(v)}`);
+                  if (!['drain', 'unreachable', 'order'].includes(k)) assert.ok(Number.isFinite(val), `${k} ${at}`);
                 }
+                assert.equal(r.order, order, `order ${at}`);
                 if (r.unreachable) continue;
-                assert.ok(r.keep >= -1e-9 && r.keep <= curP + 1e-6, `keep ${JSON.stringify(v)}`);
-                assert.ok(r.he >= 0 && r.o2 >= 0 && r.air >= 0, `amounts ${JSON.stringify(v)}`);
-                assert.ok(close(r.keep + r.he + r.o2 + r.air, fillP, 0.02), `sum ${JSON.stringify(v)}`);
-                if (r.keep > 0.01) {
-                  assert.ok(close(r.finalO2, tgtO2, 0.05) && close(r.finalHe, tgtHe, 0.05), `mix ${JSON.stringify(v)}`);
-                }
+                assert.ok(r.keep >= 0 && r.keep <= curP, `keep ${at}`);
+                assert.ok(!r.drain || r.keep < curP - 0.05, `bleed-down of at least 0.05 bar ${at}`);
+                assert.ok(r.he >= 0 && r.o2 >= 0 && r.air >= 0, `amounts ${at}`);
+                assert.ok(close(r.keep + r.he + r.o2 + r.air, fillP, 0.02), `sum ${at}`);
+                // Every step goes up and none ends above the fill pressure (0.01 bar: below the display)
+                for (const st of Blend.fillSteps(r)) assert.ok(st.to >= st.from && st.to <= fillP + 0.01, `${st.gas} step ${at}`);
+                const off = Math.max(Math.abs(r.finalO2 - tgtO2), Math.abs(r.finalHe - tgtHe));
+                // Only the real gas can miss the target: 1 atm stays in a bled cylinder
+                const approximated = method === 'real' && r.keep <= 0.05 && off < 1;
+                assert.ok(off <= 0.05 || approximated, `mix ${at}: ${r.finalO2} / ${r.finalHe}`);
               }
             }
           }
@@ -142,7 +149,86 @@ test('grid: every trimix result is finite and consistent', () => {
       }
     }
   }
-  assert.ok(checked > 3000);
+  assert.ok(checked > 5000);
+});
+
+test('hypoxic mixes without helium are reported as unreachable, not miscalculated', () => {
+  // Air raises the O2 above 18 %, so these cannot be blended from air and O2 alone
+  for (const v of [
+    { curO2: 21, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 0, fillP: 200 },
+    { curO2: 32, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 50, fillP: 200 },
+    { curO2: 18, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 50, fillP: 200 },
+    { curO2: 10, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 30, fillP: 200 },
+  ]) {
+    assert.equal(Blend.ideal(v).unreachable, true, `ideal ${JSON.stringify(v)}`);
+    assert.equal(Blend.real({ ...v, size: 12 }, T20).unreachable, true, `real ${JSON.stringify(v)}`);
+  }
+  // With enough hypoxic gas left it works: 150 bar of 10 % plus O2 and air give 18 % at 200 bar
+  const i = Blend.ideal({ curO2: 10, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 150, fillP: 200 });
+  assert.ok(i.keep === 150 && close(i.o2, 13.291, 1e-3) && close(i.air, 36.709, 1e-3) && close(i.finalO2, 18, 1e-9));
+  const r = Blend.real({ curO2: 10, curHe: 0, tgtO2: 18, tgtHe: 0, curP: 150, fillP: 200, size: 12 }, T20);
+  assert.ok(r.keep === 150 && close(r.finalO2, 18, 0.01), JSON.stringify(r));
+  // A hypoxic residual topped up to nitrox gives the same as the nitrox formulas
+  const v = { curO2: 18, curHe: 0, tgtO2: 32, tgtHe: 0, curP: 50, fillP: 200, size: 12 };
+  const [a, b, c, d] = [Blend.ideal(v), Blend.idealNitrox(v), Blend.real(v, T20), Blend.realNitrox(v, T20)];
+  for (const k of ['keep', 'o2', 'air', 'finalO2']) {
+    assert.ok(close(a[k], b[k], 1e-9), `ideal ${k}`);
+    assert.ok(close(c[k], d[k], 1e-3), `real ${k}`);
+  }
+});
+
+test('rounding remainders show neither -0 bar nor a step beyond the fill pressure', () => {
+  // N2 = 1 - 0.8 - 0.2 is -5.6e-17 in floating point
+  const i = Blend.ideal({ curO2: 21, curHe: 0, tgtO2: 80, tgtHe: 20, curP: 50, fillP: 200 });
+  assert.ok(Object.is(i.keep, 0) && close(i.he, 40, 1e-9) && close(i.o2, 160, 1e-9), JSON.stringify(i));
+  // Without air the last gas step ends at the fill pressure
+  for (const [v, T] of [
+    [{ curO2: 80, curHe: 20, tgtO2: 70.1, tgtHe: 29.9, curP: 50, fillP: 200 }, 263.15],
+    [{ curO2: 80, curHe: 20, tgtO2: 100, tgtHe: 0, curP: 50, fillP: 200 }, T20],
+    [{ curO2: 64.4, curHe: 35.6, tgtO2: 80, tgtHe: 20, curP: 170, fillP: 300, order: 'o2' }, 273.15],
+    // 1 atm of helium-rich residual keeps nearly pure O2 out of reach: still no step above the fill pressure
+    [{ curO2: 5, curHe: 68, tgtO2: 99.9, tgtHe: 0, curP: 0, fillP: 250 }, 263.15],
+    [{ curO2: 5, curHe: 40, tgtO2: 99.5, tgtHe: 0, curP: 0, fillP: 100 }, 263.15],
+    [{ curO2: 21, curHe: 29.9, tgtO2: 18, tgtHe: 35.6, curP: 200, fillP: 300, order: 'o2' }, T20],
+  ]) {
+    const r = Blend.real({ ...v, size: 12 }, T);
+    for (const s of Blend.fillSteps(r)) assert.ok(s.to >= s.from && s.to <= v.fillP + 1e-9, `${s.gas} to ${s.to} ${JSON.stringify(v)}`);
+  }
+});
+
+test('an empty cylinder needs no bleed-down even if 1 atm of air keeps the target out of reach', () => {
+  const r = Blend.real({ curO2: 21, curHe: 0, tgtO2: 50, tgtHe: 50, curP: 0, fillP: 200, size: 12 }, T20);
+  assert.equal(r.drain, null);
+  assert.equal(r.keep, 0);
+  assert.ok(close(r.finalHe, 50, 0.01) && r.finalO2 > 49.4 && r.finalO2 < 49.8, JSON.stringify(r));
+});
+
+test('the fill order is kept for mixes without helium', () => {
+  const v = { curO2: 32, curHe: 0, tgtO2: 36, tgtHe: 0, curP: 50, fillP: 200, size: 12 };
+  for (const r of [Blend.ideal({ ...v, order: 'o2' }), Blend.real({ ...v, order: 'o2' }, T20)]) {
+    assert.deepStrictEqual(Blend.fillSteps(r).map((s) => s.gas), ['o2', 'he', 'air']);
+  }
+  assert.deepStrictEqual(Blend.fillSteps(Blend.ideal(v)).map((s) => s.gas), ['he', 'o2', 'air']);
+});
+
+test('END is never negative and the best mix can always be blended with air', () => {
+  // Less narcotic than air at the surface (oxygen not counted): 0 m, not -10 m
+  assert.equal(Blend.end(40, 1, 0, false), 0);
+  assert.equal(Blend.end(130, 0.1, 0.9, false), 0);
+  // 40 m, ppO2 1.0, END 40: 20 % O2 needs some helium, EAN20 cannot be mixed from air
+  assert.deepStrictEqual(Blend.bestMix(40, 1.0, 40, true), { o2: 20, he: 5 });
+  assert.deepStrictEqual(Blend.bestMix(40, 1.0, 40, false), { o2: 20, he: 5 });
+  for (let depth = 10; depth <= 150; depth += 5) {
+    for (const ppO2 of [1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6]) {
+      for (const endTarget of [0, 10, 20, 24, 30, 40, 50, 60]) {
+        for (const narcotic of [true, false]) {
+          const m = Blend.bestMix(depth, ppO2, endTarget, narcotic);
+          const v = { curO2: 21, curHe: 0, tgtO2: m.o2, tgtHe: m.he, curP: 0, fillP: 200 };
+          assert.equal(Blend.ideal(v).unreachable, false, `${depth} m ${ppO2} ${endTarget} ${narcotic}: ${JSON.stringify(m)}`);
+        }
+      }
+    }
+  }
 });
 
 test('mixAfterFill reproduces the target when filling to the real-gas targets in either order', () => {

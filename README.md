@@ -4,14 +4,14 @@ A free calculator for **partial pressure blending of nitrox and trimix**. It tel
 
 **Open the calculator:** https://mix.alhu.at/
 
-It runs entirely in your browser, works on a phone at the fill station, and is available in English and German (it follows your device language). Your inputs are remembered in your browser.
+It runs entirely in your browser, works on a phone at the fill station, and is available in English and German (it follows your device language). Your inputs are remembered in your browser; the real-gas correction and the heating model always start switched on.
 
 ## Install as an app
 
 The calculator can be installed like an app and then also works **offline**, for example at a fill station without reception.
 
 - **Android, Chrome, Edge:** tap the install button (arrow icon) next to DE/EN, or use the browser menu ("Install app" / "Add to Home screen").
-- **iPhone, iPad:** in Safari tap *Share* and then *Add to Home Screen*. The install button next to DE/EN shows these steps too.
+- **iPhone, iPad:** in Safari tap *Share* and then *Add to Home Screen*. The install button next to DE/EN shows these steps too. The installed app keeps its own storage, separate from Safari: open it once while online so it can store itself for offline use.
 
 After the first visit everything the calculator needs is stored on the device. Whenever you are online it loads the current version and refreshes the offline copy.
 
@@ -38,6 +38,8 @@ The simple ideal-gas formula would say 77.8 bar for step 1, which overshoots at 
 
 If the cylinder still holds EAN40 at 150 bar and you want EAN32 at 200 bar, there is too much oxygen in it. The calculator tells you to bleed it down to **110.5 bar** first and then top up with air only.
 
+Even an empty or bled cylinder still holds 1 atm of gas. With the real-gas correction (on by default), the calculator takes this into account. When that 1 atm is enough to keep the target out of reach, it says so and works with the mix you will actually get. Example: pure oxygen from an empty cylinder of air gives about 99.6 % O₂ at 200 bar. MOD, END, gas density and the target for analysing then use that mix.
+
 ## Trimix
 
 Switch to **Trimix** at the top of the page. Each mix then has an O₂ % and a He %, and nitrogen is the rest. There are quick picks for air, EAN32, 21/35, 18/45, 15/55, 12/65, 10/70 and Helitrox 25/25. Nitrox and trimix each remember their own mixes.
@@ -58,7 +60,7 @@ For each step you get the gauge target, warm and after cooling. You also get the
   - END at the MOD for ppO₂ 1.4 (switch *count O₂ as narcotic*, on by default)
   - Gas density at that depth: yellow above 5.2 g/l, red above 6.2 g/l
   - For hypoxic mixes (below 18 % O₂): the minimum depth for ppO₂ 0.18, with a warning not to breathe the mix at the surface
-- **Find the best mix:** enter the depth, the maximum ppO₂ and the END you want. The calculator suggests the mix: O₂ rounded down and He rounded up, both on the safe side. It shows the END and density for that mix, and *Use as target* copies the mix into the inputs. Example: 60 m, ppO₂ 1.4, END 30 m gives Tx 20/43 (Tx 20/35 if oxygen is not counted as narcotic).
+- **Find the best mix:** enter the depth, the maximum ppO₂ and the END you want. The calculator suggests the mix: O₂ rounded down and He rounded up, both on the safe side. It shows the MOD, END and density for that mix, and *Use as target* copies the mix into the inputs. Example: 60 m, ppO₂ 1.4, END 30 m gives Tx 20/43 (Tx 20/35 if oxygen is not counted as narcotic). The suggestion can always be blended with air. If the oxygen is so low that the air would bring too much of it with its nitrogen, enough helium is added: 40 m, ppO₂ 1.0, END 40 m gives Tx 20/5 instead of EAN20.
 
 ### Example
 
@@ -106,7 +108,7 @@ This part of the calculator is **switched on by default** and can be turned off.
 - **Let cool after O₂:** you pause after the oxygen step before the next gas goes in
 
 Both pauses follow their gas, whatever the fill order.
-- **Let cool after the air fill, then top up:** instead of filling far above the target in one go, you fill air only up to the target pressure, let the cylinder cool for a pause you choose (15–90 min), and then top up to a calculated value so it sits exactly at the target once cold
+- **Let cool after the air fill, then top up:** instead of filling far above the target in one go, you fill air only up to the target pressure, let the cylinder cool for a pause you choose (5–240 min, quick picks 15, 30, 60 and 90 min), and then top up to a calculated value so it sits exactly at the target once cold
 
 You get the warm targets (marked "read warm") together with how many bar of each target are due to heating, the peak gas temperature, the pressure drop and the cool-down time, charts of pressure and temperature over time, and a comparison with what you would end up with **without** the correction.
 
@@ -145,9 +147,9 @@ These are model estimates, not measurements. Real values depend on the compresso
 
 ## Real-gas correction
 
-At filling pressures, gases don't behave ideally. Oxygen squeezes together more than an ideal gas (compressibility factor Z < 1), air and nitrogen less (Z > 1). The classic partial pressure formula ignores this, so at 200–350 bar it asks for too much oxygen. Checked against NIST reference data at 20 °C, filling to the ideal targets gives:
+At filling pressures, gases don't behave ideally. Oxygen squeezes together more than an ideal gas (compressibility factor Z < 1), air and nitrogen less (Z > 1). The classic partial pressure formula ignores this, so at 200–350 bar it asks for too much oxygen. The last column shows what NIST reference data predict at 20 °C when you fill to the ideal targets:
 
-| Fill | O₂ to: ideal | O₂ to: real gas | Mix with the ideal target |
+| Fill | O₂ to: ideal | O₂ to: real gas (this calculator) | Mix with the ideal target (NIST data) |
 |---|---|---|---|
 | 50 bar air → EAN32 at 232 bar | 82.3 bar | 79.5 bar | 32.9 % |
 | 30 bar air → EAN32 at 300 bar | 71.8 bar | 66.4 bar | 33.5 % |
@@ -199,7 +201,7 @@ Air to add = (P2·n2 − P1·n1) / 0.79
 O₂ to add  = P2·f2 − P1·f1 − 0.21·(air to add)
 ```
 
-Each amount depends linearly on the leftover pressure `P1`. If one comes out negative, the calculator bleeds down to the highest pressure at which all three are zero or positive. If there is no such pressure, the mix cannot be made by topping up with air. Without helium, this is the nitrox formula above.
+Each amount depends linearly on the leftover pressure `P1`. If one comes out negative, the calculator bleeds down to the highest pressure at which all three are zero or positive. If there is no such pressure, the mix cannot be made by topping up with air. Without helium, this is the nitrox formula above. A bleed-down of 0.05 bar or less is not shown, with either method.
 
 The amounts do not depend on the fill order. With the ideal method, the gauge targets are simply the amounts added up in fill order. With the real-gas method, each target follows from the gas in the cylinder at that point, so the pressure rise of a gas depends on when it goes in. Example: empty → Tx 18/45 at 220 bar. The O₂ step raises the gauge by 16.6 bar after the helium and by 16.7 bar before it.
 
@@ -256,13 +258,13 @@ Regression values (20 °C, 12 L, gauge readings after cooling):
 
 ```
 MOD           = (ppO₂ / f − 1) · 10
-END           = (P · (1 − h) − 1) · 10            O₂ counted as narcotic
-END           = (P · n / 0.79 − 1) · 10           only N₂ narcotic
-Minimum depth = (0.18 / f − 1) · 10
+END           = (P · (1 − h) − 1) · 10            O₂ counted as narcotic, at least 0
+END           = (P · n / 0.79 − 1) · 10           only N₂ narcotic, at least 0
+Minimum depth = (0.18 / f − 1) · 10               at least 0
 Density       = P · M / (R · T)                   M = molar mass of the mix, T = 20 °C
 ```
 
-The best mix takes the O₂ fraction from the ppO₂ (`ppO₂ / P`, rounded down) and the helium from the END. This is the reverse of the END formula, rounded up.
+The best mix takes the O₂ fraction from the ppO₂ (`ppO₂ / P`, rounded down) and the helium from the END. This is the reverse of the END formula, rounded up. The helium is never less than `1 − f / 0.21` (rounded up): air brings 0.21/0.79 bar of O₂ with every bar of N₂, so with less helium the mix could not be blended with air.
 
 **Heating model** ([thermo.js](thermo.js)): two heat stores (the gas and the cylinder wall), ideal gas, 1-second time steps:
 
@@ -308,7 +310,12 @@ docker compose up -d --build
 
 Stop it with `docker compose down`.
 
-The Docker build adds a content hash to the script and style URLs (`app.js?v=…`) and nginx sends matching cache headers, so a CDN such as Cloudflare never mixes old and new files after an update.
+The Docker build adds a content hash to the script and style URLs (`app.js?v=…`). nginx marks only the current hash as unchanging, so a CDN such as Cloudflare never mixes old and new files after an update. The service worker answers versioned files from its cache and falls back to the cached copy when the server reports an error.
+
+Behind Cloudflare:
+
+- The scripts carry `data-cfasync="false"`, so Rocket Loader leaves them alone. Otherwise they would only run through Rocket Loader's own script, which is not stored for offline use. Turning Rocket Loader off for the site is fine too.
+- Set *Browser Cache TTL* to *Respect Existing Headers*, so the cache headers from nginx reach the browser.
 
 Run the tests (Node 18 or newer, no dependencies):
 

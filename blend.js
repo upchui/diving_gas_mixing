@@ -249,10 +249,12 @@
 
   const fractions = (o2, he = 0) => {
     const f = { o2: o2 / 100, he: (he || 0) / 100 };
-    f.n2 = 1 - f.o2 - f.he;
+    // 1 − 0.8 − 0.2 is −5.6e‑17, not 0
+    f.n2 = clean(1 - f.o2 - f.he);
     return f;
   };
-  const isPlainNitrox = (v) => !(v.curHe > 0) && !(v.tgtHe > 0);
+  // The nitrox formulas only cover mixes without helium and with at least the O2 of air
+  const isPlainNitrox = (v) => !(v.curHe > 0) && !(v.tgtHe > 0) && v.curO2 >= 21 && v.tgtO2 >= 21;
   const fillOrder = (order) => (order === 'o2' ? ['o2', 'he'] : ['he', 'o2']);
 
   /**
@@ -334,7 +336,7 @@
     if (s.unreachable) return unreachableResult(curP, f0, order);
     const total = s.n0 + s.he + s.o2 + s.air;
     return {
-      keep: s.n0,
+      keep: Math.max(0, s.n0),
       he: s.he,
       o2: s.o2,
       air: s.air,
@@ -357,8 +359,10 @@
     const nf = moles(ff.o2, fillP, T, V, ff.he);
     const n0cur = moles(f0.o2, curP, T, V, f0.he);
     const n0min = moles(f0.o2, 0, T, V, f0.he);
-    const s = solve(nf, n0cur, n0min, f0, ff);
+    const s = { ...solve(nf, n0cur, n0min, f0, ff) };
     if (s.unreachable) return unreachableResult(curP, f0, order);
+    // Rounding noise (e.g. 1e-14 mol of air) must not count as a step
+    for (const gas of ['he', 'o2', 'air']) if (s[gas] < 1e-9 * nf) s[gas] = 0;
 
     let keep = curP;
     if (s.n0 < n0cur - 1e-12) keep = s.n0 <= n0min + 1e-12 ? 0 : Math.max(0, pressure(s.n0, f0.o2, T, V, f0.he));
@@ -373,8 +377,10 @@
       n += s[gas];
       amount[gas] += s[gas];
       const last = !(s.air > 0) && (i === 1 || !(s[gases[1]] > 0));
-      const next = last ? fillP : pressure(n, amount.o2 / n, T, V, amount.he / n);
-      rise[gas] = Math.max(0, next - p);
+      // Never below the previous step (pressure() is accurate to 0.01 bar) and never
+      // above the fill pressure (when 1 atm of residual keeps the target out of reach)
+      const next = last ? fillP : Math.min(fillP, Math.max(p, pressure(n, amount.o2 / n, T, V, amount.he / n)));
+      rise[gas] = next - p;
       p = next;
     });
     const total = n + s.air;
@@ -396,12 +402,16 @@
   }
 
   /**
-   * Gas amounts and gauge targets. Plain nitrox (no helium) keeps the original
-   * calculation; trimix goes through the general one.
+   * Gas amounts and gauge targets. Plain nitrox (no helium, O2 >= 21 %) keeps the
+   * original calculation; everything else goes through the general one.
    */
-  const withoutHelium = (r) => ({ ...r, he: 0, finalHe: 0, unreachable: false, ...(r.litersO2 != null && { litersHe: 0 }) });
-  const ideal = (v) => (isPlainNitrox(v) ? withoutHelium(idealNitrox(v)) : idealMix(v));
-  const real = (v, T) => (isPlainNitrox(v) ? withoutHelium(realNitrox(v, T)) : realMix(v, T));
+  const withoutHelium = (r, order) => ({
+    ...r, he: 0, finalHe: 0, unreachable: false, ...(order && { order }), ...(r.litersO2 != null && { litersHe: 0 }),
+  });
+  // A bleed-down of less than 0.05 bar (or none at all, e.g. from 0 bar) is no bleed-down
+  const finish = (r, curP) => (r.drain && r.keep < curP - 0.05 ? r : { ...r, drain: null, keep: Math.min(r.keep, curP) });
+  const ideal = (v) => finish(isPlainNitrox(v) ? withoutHelium(idealNitrox(v), v.order) : idealMix(v), v.curP);
+  const real = (v, T) => finish(isPlainNitrox(v) ? withoutHelium(realNitrox(v, T), v.order) : realMix(v, T), v.curP);
 
   /**
    * The fill steps of a result in order, with the gauge pressure (cold) before and after
@@ -455,10 +465,13 @@
   /** Maximum operating depth in m for a ppO2 limit. */
   const mod = (fO2, ppO2) => (ppO2 / fO2 - 1) * 10;
 
-  /** Equivalent narcotic depth in m; with o2Narcotic, oxygen counts as narcotic like nitrogen. */
+  /**
+   * Equivalent narcotic depth in m; with o2Narcotic, oxygen counts as narcotic like
+   * nitrogen. A mix less narcotic than air at the surface gives 0, not a negative depth.
+   */
   function end(depth, fO2, fHe, o2Narcotic) {
     const narcotic = o2Narcotic ? 1 - fHe : (1 - fO2 - fHe) / (1 - AIR_O2);
-    return ambientBar(depth) * narcotic * 10 - 10;
+    return Math.max(0, ambientBar(depth) * narcotic * 10 - 10);
   }
 
   /** Minimum operating depth in m for hypoxic mixes (0 when breathable at the surface). */
@@ -472,13 +485,16 @@
 
   /**
    * Trimix for a depth, maximum ppO2 and target END, in whole percent: O2 rounded
-   * down, helium rounded up (both on the safe side).
+   * down, helium rounded up (both on the safe side). The mix must also be blendable
+   * with air as top-up gas: air brings 0.21/0.79 bar of O2 with every bar of N2, so
+   * at least 1 − fO2/0.21 of the mix has to be helium.
    */
   function bestMix(depth, ppO2, endTarget, o2Narcotic) {
     const o2 = Math.min(100, Math.floor((ppO2 / ambientBar(depth)) * 100 + 1e-9));
     const narcotic = Math.min(1, ambientBar(endTarget) / ambientBar(depth));
     const heFraction = o2Narcotic ? 1 - narcotic : 1 - o2 / 100 - (1 - AIR_O2) * narcotic;
-    const he = Math.max(0, Math.min(100 - o2, Math.ceil(heFraction * 100 - 1e-9)));
+    const heForAir = Math.ceil((1 - o2 / 100 / AIR_O2) * 100 - 1e-9);
+    const he = Math.max(0, heForAir, Math.min(100 - o2, Math.ceil(heFraction * 100 - 1e-9)));
     return { o2, he };
   }
 

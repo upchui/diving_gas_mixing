@@ -138,6 +138,21 @@ test('unreachable targets give a bleed-down hint instead of NaN', () => {
   }
 });
 
+test('no bleed-down instruction when there is nothing to bleed', () => {
+  // The real-gas residual comes out 0.001 bar below the current pressure: no "bleed from 220.0 to 220.0"
+  const a = Blend.real({ curO2: 21, tgtO2: 40, curP: 220, fillP: 300, size: 12 }, T20);
+  assert.equal(a.drain, null);
+  assert.ok(a.keep > 219.95 && a.keep <= 220 && a.air === 0 && Math.abs(a.finalO2 - 40) < 0.01, JSON.stringify(a));
+  // An empty cylinder still holds 1 atm of air: 100 % O2 is only nearly reachable, but there is nothing to bleed
+  const b = Blend.real({ curO2: 21, tgtO2: 100, curP: 0, fillP: 200, size: 12 }, T20);
+  assert.equal(b.drain, null);
+  assert.ok(b.keep === 0 && b.o2 === 200 && b.air === 0 && b.finalO2 > 99.5 && b.finalO2 < 99.7, JSON.stringify(b));
+  // The rule lives in ideal()/real(); the original nitrox calculation is unchanged
+  const v = { curO2: 21, tgtO2: 100, curP: 0.03, fillP: 200 };
+  assert.equal(Blend.ideal(v).drain, null);
+  assert.equal(Blend.idealNitrox(v).drain, 'rich');
+});
+
 test('mixAfter() reproduces the target mix when filling to the real-gas targets', () => {
   for (const v of [
     { curO2: 21, tgtO2: 32, curP: 50, fillP: 232 },

@@ -83,7 +83,7 @@ test('helium heats up more than air when filled the same way', () => {
   assert.ok(close(he.heFraction, 1, 1e-9) && close(air.heFraction, 0, 1e-9));
 });
 
-test('trimix fill: helium, O2 and top-up gas end at the target amounts and mix', () => {
+test('trimix fill: helium, O2 and air end at the target amounts and mix', () => {
   // Empty cylinder to Tx 18/45 at 220 bar, ideal amounts: He to 99, O2 to 116.96, air to 220
   const s = Thermo.simulateFill({
     liters: 12, material: 'steel', tAmbC: 20, rate: 10, keep: 0, f1: 0.21, h1: 0,

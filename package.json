@@ -1,7 +1,7 @@
 {
   "name": "diving-gas-mixing",
   "private": true,
-  "description": "Nitrox top-up calculator (static page)",
+  "description": "Nitrox and trimix top-up calculator (static page)",
   "scripts": {
     "test": "node --test"
   }
