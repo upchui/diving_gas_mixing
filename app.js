@@ -575,6 +575,9 @@
     const num = (x) => (Number.isFinite(x) ? fmtAuto(x) : '–');
 
     $('materialHint').textContent = L[MAT_HINT[state.material]];
+    // Cylinder band: what the requested mix is (an empty helium field counts as none)
+    const bandHe = trimix ? v.tgtHe : 0;
+    $('bandText').textContent = bandHe > 0 ? 'TRIMIX' : v.tgtO2 === 21 ? 'AIR' : 'NITROX';
     $('factMod14Label').textContent = `MOD ppO₂ ${fmt(1.4)}`;
     $('factMod16Label').textContent = `MOD ppO₂ ${fmt(1.6)}`;
     $('factEndLabel').textContent = L.endLabel(fmt(1.4));
